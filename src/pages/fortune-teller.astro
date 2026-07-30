@@ -1,0 +1,645 @@
+---
+import '../styles/global.css';
+---
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Fortune Teller — Arcane Arcade</title>
+  <meta name="description" content="An AI-assisted fortune teller with a genuinely offline fallback, vintage woodcut-style illustrations, and pass-and-play or link-based multiplayer." />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+</head>
+<body class="bg-[#0B0B14] text-[#F3ECE0] min-h-screen font-sans relative overflow-x-hidden">
+  <!-- ambient glow layer -->
+  <div class="pointer-events-none fixed inset-0 overflow-hidden">
+    <div class="absolute -top-32 -left-20 w-96 h-96 rounded-full bg-[#B45CFF] opacity-20 blur-[100px]"></div>
+    <div class="absolute top-1/2 -right-20 w-96 h-96 rounded-full bg-[#FF5C8A] opacity-10 blur-[110px]"></div>
+  </div>
+
+  <div id="app" class="relative max-w-3xl mx-auto px-5 py-6 min-h-screen flex flex-col"></div>
+  <div id="modal-root"></div>
+
+  <script>
+    /* ============================================================
+       AI FORTUNE TELLER
+       - Zero backend, zero database. localStorage only tracks
+         which question IDs a visitor has already seen.
+       - AI text: text.pollinations.ai (free, no key). Falls back
+         to a local Mulberry32-seeded fortune constructor if the
+         AI call fails, times out, or the visitor has hit the
+         client-side rate limit.
+       - AI images: image.pollinations.ai (free, no key), styled
+         as vintage woodcut line art. Falls back to a local SVG
+         (/fallback-mystic.svg) on load error.
+       ============================================================ */
+
+    type OptionDef = { label: string; vector: number[] };
+    type QuestionDef = { id: number; text: string; card: string; options: OptionDef[] };
+    type Archetype = { name: string; desc: string; vector: number[] };
+    type Mode = "solo" | "pass" | "destiny";
+    type Screen = "mode" | "quiz" | "result" | "pass-result" | "destiny-incoming" | "destiny-result";
+
+    const TRAITS = ["Love", "Career", "Luck", "Adventure"];
+    const TRAIT_COUNT = TRAITS.length;
+    const SEEN_KEY = "aa_fortune_seen_ids_v1";
+    // Same stable endpoint already proven reliable in the Tarot game —
+    // resolves to the current file regardless of internal Wikimedia hashing.
+    const WIKI_FILE = (filename: string) => `https://commons.wikimedia.org/wiki/Special:FilePath/${filename}`;
+    const FALLBACK_IMG = "/fallback-mystic.svg";
+
+    // ---------- crypto-secure randomness (fair question selection) ----------
+    function secureRandomInt(maxExclusive: number): number {
+      const arr = new Uint32Array(1);
+      const limit = 0xFFFFFFFF - (0xFFFFFFFF % maxExclusive);
+      let val: number;
+      do {
+        crypto.getRandomValues(arr);
+        val = arr[0];
+      } while (val >= limit);
+      return val % maxExclusive;
+    }
+    function secureShuffle<T>(arr: T[]): T[] {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = secureRandomInt(i + 1);
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    // ---------- Mulberry32 (deterministic offline fortune construction) ----------
+    function mulberry32(seed: number) {
+      return function () {
+        seed |= 0;
+        seed = (seed + 0x6D2B79F5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function seedFromVector(vector: number[]): number {
+      return vector.reduce((acc, v, i) => acc + v * (i + 3) * 977, Date.now() % 100000);
+    }
+
+    // ---------- XSS-safe interpolation ----------
+    function escapeHTML(str: string): string {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // ---------- question pool ----------
+    // Schema scales to 400+ without code changes — append more entries.
+    const QUESTIONS: QuestionDef[] = [
+      { id: 0, text: "You find an old key with no lock in sight. What do you do?", card: WIKI_FILE("RWS_Tarot_05_Hierophant.jpg"), options: [
+        { label: "Keep it — it'll find its lock eventually", vector: [0, 0, 1, 1] },
+        { label: "Ask around, someone must be missing it", vector: [1, 0, 0, 0] },
+        { label: "Study it for clues about where it's from", vector: [0, 1, 0, 0] },
+      ]},
+      { id: 1, text: "A stranger offers you a single piece of advice. You hope it's about:", card: WIKI_FILE("RWS_Tarot_02_High_Priestess.jpg"), options: [
+        { label: "Someone you haven't met yet", vector: [1, 0, 0, 0] },
+        { label: "A decision you've been avoiding", vector: [0, 1, 0, 0] },
+        { label: "A risk worth taking", vector: [0, 0, 1, 1] },
+      ]},
+      { id: 2, text: "The candle in front of you suddenly flickers twice. You take this as a sign to:", card: WIKI_FILE("RWS_Tarot_09_Hermit.jpg"), options: [
+        { label: "Slow down and pay attention", vector: [0, 0, 1, 0] },
+        { label: "Trust your gut on something big", vector: [0, 1, 1, 0] },
+        { label: "Reach out to someone you've been missing", vector: [1, 0, 0, 0] },
+      ]},
+      { id: 3, text: "A black cat crosses your path at a crossroads. Which road calls to you?", card: WIKI_FILE("RWS_Tarot_00_Fool.jpg"), options: [
+        { label: "The one leading somewhere unfamiliar", vector: [0, 0, 0, 1] },
+        { label: "The one leading home", vector: [1, 0, 0, 0] },
+        { label: "The one leading to work left unfinished", vector: [0, 1, 0, 0] },
+      ]},
+      { id: 4, text: "You're handed an hourglass with sand running low. What matters most right now?", card: WIKI_FILE("RWS_Tarot_13_Death.jpg"), options: [
+        { label: "Making the most of the people around me", vector: [1, 0, 0, 0] },
+        { label: "Finishing what I started", vector: [0, 1, 0, 0] },
+        { label: "Doing something I haven't dared to yet", vector: [0, 0, 0, 1] },
+      ]},
+      { id: 5, text: "Two paths through a moonlit forest. You choose the one that:", card: WIKI_FILE("RWS_Tarot_18_Moon.jpg"), options: [
+        { label: "Looks well-worn and safe", vector: [0, 1, 1, 0] },
+        { label: "Disappears into the unknown", vector: [0, 0, 0, 1] },
+        { label: "Leads toward distant voices", vector: [1, 0, 0, 0] },
+      ]},
+      { id: 6, text: "A raven lands beside you and drops a coin. You spend it on:", card: WIKI_FILE("RWS_Tarot_10_Wheel_of_Fortune.jpg"), options: [
+        { label: "A gift for someone I care about", vector: [1, 0, 0, 0] },
+        { label: "Investing in something bigger", vector: [0, 1, 0, 0] },
+        { label: "Something reckless and fun", vector: [0, 0, 0, 1] },
+      ]},
+      { id: 7, text: "You gaze into a scrying pool. What do you hope to see?", card: WIKI_FILE("RWS_Tarot_17_Star.jpg"), options: [
+        { label: "Where I'll end up in five years", vector: [0, 1, 0, 0] },
+        { label: "Who I'll fall for next", vector: [1, 0, 0, 0] },
+        { label: "Whether my luck is about to change", vector: [0, 0, 1, 0] },
+      ]},
+      { id: 8, text: "An old book falls open to a random page. You read it as a sign about:", card: WIKI_FILE("RWS_Tarot_11_Justice.jpg"), options: [
+        { label: "A relationship you've been thinking about", vector: [1, 0, 0, 0] },
+        { label: "A goal worth chasing harder", vector: [0, 1, 0, 0] },
+        { label: "A gamble that might just pay off", vector: [0, 0, 1, 0] },
+      ]},
+      { id: 9, text: "The wind shifts suddenly while you're outside. It feels like:", card: WIKI_FILE("RWS_Tarot_16_Tower.jpg"), options: [
+        { label: "Something new is about to begin", vector: [0, 0, 0, 1] },
+        { label: "A warning to be careful", vector: [0, 1, 0, 0] },
+        { label: "Luck turning in my favor", vector: [0, 0, 1, 0] },
+      ]},
+      { id: 10, text: "You're offered three coins to toss into a wishing well. Your wishes lean toward:", card: WIKI_FILE("RWS_Tarot_10_Wheel_of_Fortune.jpg"), options: [
+        { label: "Love finding its way to me", vector: [1, 0, 0, 0] },
+        { label: "Success in something I've worked hard for", vector: [0, 1, 0, 0] },
+        { label: "One truly wild story to tell", vector: [0, 0, 0, 1] },
+      ]},
+      { id: 11, text: "A shooting star crosses the sky mid-thought. What were you thinking about?", card: WIKI_FILE("RWS_Tarot_17_Star.jpg"), options: [
+        { label: "Someone specific", vector: [1, 0, 0, 0] },
+        { label: "A plan I haven't told anyone yet", vector: [0, 1, 0, 0] },
+        { label: "Whether I should just go for it", vector: [0, 0, 1, 1] },
+      ]},
+      { id: 12, text: "You find a locked door with no visible key. Your instinct is to:", card: WIKI_FILE("RWS_Tarot_12_Hanged_Man.jpg"), options: [
+        { label: "Wait — it'll open when it's meant to", vector: [0, 0, 1, 0] },
+        { label: "Find another way around it", vector: [0, 1, 0, 1] },
+        { label: "Knock and see who answers", vector: [1, 0, 0, 0] },
+      ]},
+      { id: 13, text: "A fortune cookie breaks in half before you can read it. You decide the message was about:", card: WIKI_FILE("RWS_Tarot_00_Fool.jpg"), options: [
+        { label: "A chance encounter", vector: [1, 0, 0, 1] },
+        { label: "Money or opportunity", vector: [0, 0, 1, 0] },
+        { label: "Hard work paying off", vector: [0, 1, 0, 0] },
+      ]},
+      { id: 14, text: "You're standing at a crossroads at midnight. What do you ask the universe?", card: WIKI_FILE("RWS_Tarot_18_Moon.jpg"), options: [
+        { label: "\"Will they come back?\"", vector: [1, 0, 0, 0] },
+        { label: "\"Am I on the right path?\"", vector: [0, 1, 0, 0] },
+        { label: "\"What am I not seeing?\"", vector: [0, 0, 1, 1] },
+      ]},
+      { id: 15, text: "A moth lands on an open letter you haven't sent. You take it as a sign to:", card: WIKI_FILE("RWS_Tarot_14_Temperance.jpg"), options: [
+        { label: "Send it after all", vector: [1, 0, 0, 0] },
+        { label: "Rewrite it more carefully", vector: [0, 1, 0, 0] },
+        { label: "Burn it and start fresh", vector: [0, 0, 0, 1] },
+      ]},
+      { id: 16, text: "You draw a card face-down from a stranger's deck. Before flipping it, you hope for:", card: WIKI_FILE("RWS_Tarot_20_Judgement.jpg"), options: [
+        { label: "Reassurance about someone", vector: [1, 0, 0, 0] },
+        { label: "Clarity about a decision", vector: [0, 1, 0, 0] },
+        { label: "A sign my luck is turning", vector: [0, 0, 1, 0] },
+      ]},
+      { id: 17, text: "The fire in front of you crackles and pops loudly. You read it as:", card: WIKI_FILE("RWS_Tarot_08_Strength.jpg"), options: [
+        { label: "Passion, not caution", vector: [1, 0, 0, 1] },
+        { label: "A push toward action", vector: [0, 1, 0, 0] },
+        { label: "Chaos I should sit with, not fight", vector: [0, 0, 1, 0] },
+      ]},
+      { id: 18, text: "A fortune teller asks what you fear losing most. You answer:", card: WIKI_FILE("RWS_Tarot_02_High_Priestess.jpg"), options: [
+        { label: "The people closest to me", vector: [1, 0, 0, 0] },
+        { label: "Momentum on something I've built", vector: [0, 1, 0, 0] },
+        { label: "The nerve to keep taking chances", vector: [0, 0, 0, 1] },
+      ]},
+      { id: 19, text: "You wake from a vivid dream you can't fully remember. The feeling left behind is:", card: WIKI_FILE("RWS_Tarot_19_Sun.jpg"), options: [
+        { label: "Longing", vector: [1, 0, 0, 0] },
+        { label: "Ambition", vector: [0, 1, 0, 0] },
+        { label: "Restlessness", vector: [0, 0, 0, 1] },
+        { label: "Anticipation", vector: [0, 0, 1, 0] },
+      ]},
+    ];
+
+    // ---------- fate archetypes (result persona, via cosine similarity) ----------
+    const ARCHETYPES: Archetype[] = [
+      { name: "The Hopeless Romantic", desc: "Fate keeps circling back to the people in your life.", vector: [1, 0.2, 0.2, 0.2] },
+      { name: "The Builder", desc: "Your path is shaped by what you're willing to work for.", vector: [0.2, 1, 0.2, 0.2] },
+      { name: "The Gambler", desc: "Luck bends toward those bold enough to test it.", vector: [0.2, 0.2, 1, 0.3] },
+      { name: "The Wanderer", desc: "Your fate is written in motion, not in staying still.", vector: [0.2, 0.2, 0.3, 1] },
+      { name: "The Old Soul", desc: "Balanced and watchful — your fate moves at its own pace.", vector: [0.6, 0.6, 0.6, 0.6] },
+    ];
+    const ARCHETYPE_CARD: Record<string, string> = {
+      "The Hopeless Romantic": "RWS_Tarot_06_Lovers.jpg",
+      "The Builder": "RWS_Tarot_04_Emperor.jpg",
+      "The Gambler": "RWS_Tarot_10_Wheel_of_Fortune.jpg",
+      "The Wanderer": "RWS_Tarot_00_Fool.jpg",
+      "The Old Soul": "RWS_Tarot_09_Hermit.jpg",
+    };
+
+    function cosineSimilarity(a: number[], b: number[]): number {
+      let dot = 0, magA = 0, magB = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i]; magA += a[i] * a[i]; magB += b[i] * b[i];
+      }
+      if (magA === 0 || magB === 0) return 0;
+      return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+    }
+    function matchArchetype(vector: number[]): Archetype {
+      let best = ARCHETYPES[0], bestScore = -Infinity;
+      for (const a of ARCHETYPES) {
+        const score = cosineSimilarity(vector, a.vector);
+        if (score > bestScore) { bestScore = score; best = a; }
+      }
+      return best;
+    }
+
+    // ---------- localStorage: track seen questions so repeat visits feel fresh ----------
+    function getSeenIds(): number[] {
+      try {
+        const raw = window.localStorage.getItem(SEEN_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return []; // private browsing / storage disabled — just degrade gracefully
+      }
+    }
+    function markSeen(ids: number[]) {
+      try {
+        const existing = new Set(getSeenIds());
+        ids.forEach((id) => existing.add(id));
+        window.localStorage.setItem(SEEN_KEY, JSON.stringify([...existing]));
+      } catch {
+        // storage unavailable — quiz still works, it just won't remember between visits
+      }
+    }
+    function pickQuestions(count: number): QuestionDef[] {
+      const seen = new Set(getSeenIds());
+      let pool = QUESTIONS.filter((q) => !seen.has(q.id));
+      if (pool.length < count) {
+        // seen the whole bank — cycle back to the full pool
+        try { window.localStorage.removeItem(SEEN_KEY); } catch {}
+        pool = QUESTIONS;
+      }
+      const picked = secureShuffle(pool).slice(0, count);
+      markSeen(picked.map((q) => q.id));
+      return picked;
+    }
+
+    // ---------- client-side AI rate limiting ----------
+    const AI_CALL_LIMIT = 5;
+    const AI_CALL_WINDOW_MS = 60000;
+    let aiCallTimestamps: number[] = [];
+    function canCallAI(): boolean {
+      const now = Date.now();
+      aiCallTimestamps = aiCallTimestamps.filter((t) => now - t < AI_CALL_WINDOW_MS);
+      if (aiCallTimestamps.length >= AI_CALL_LIMIT) return false;
+      aiCallTimestamps.push(now);
+      return true;
+    }
+    function showRateLimitModal(onContinue: () => void) {
+      const root = document.getElementById("modal-root")!;
+      root.innerHTML = `
+        <div class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-5">
+          <div class="max-w-sm w-full rounded-2xl p-6 bg-[#14131f]/90 border border-[#E8C766]/40 text-center">
+            <h3 class="font-serif font-bold text-lg mb-2">The oracle needs a moment</h3>
+            <p class="text-sm text-[#9490A8] mb-5">You've asked a lot of questions in a short time. Switching to the offline oracle so you're never blocked.</p>
+            <button id="rate-limit-continue" class="px-5 py-2.5 rounded-full font-bold text-sm bg-gradient-to-br from-[#E8C766] to-[#C9A227] text-[#1a1408]">Continue</button>
+          </div>
+        </div>
+      `;
+      document.getElementById("rate-limit-continue")?.addEventListener("click", () => {
+        root.innerHTML = "";
+        onContinue();
+      });
+    }
+
+    // ---------- AI fortune text, with genuine offline fallback ----------
+    const OPENERS = ["The signs are clear tonight:", "What the cards will not say plainly, this will:", "Read this once, and let it settle:", "Fate rarely whispers twice, so listen:"];
+    const CLOSERS = ["Carry it lightly, but carry it.", "Not a certainty — a nudge.", "Take what serves you, leave the rest.", "The rest is still yours to write."];
+    const TRAIT_LINES: Record<string, string[]> = {
+      Love: ["someone from your past is thinking of you more than you'd guess", "a conversation you've been avoiding will open a door, not close one", "the right person is closer than the timing has let on"],
+      Career: ["a plan you doubted is closer to working than it feels", "recognition is coming, later than you hoped but sooner than you fear", "the risk you're weighing is smaller than the one you're already taking by waiting"],
+      Luck: ["a small, unremarkable choice this week tips something larger", "what looks like bad luck now is setup, not sentence", "an unexpected offer deserves a second look, not a reflex no"],
+      Adventure: ["the unfamiliar road is the one worth taking this time", "staying comfortable is costing you more than the risk would", "somewhere you haven't been is waiting longer than it should"],
+    };
+    function localFortuneFallback(vector: number[]): string {
+      const seed = seedFromVector(vector);
+      const rng = mulberry32(seed);
+      const dominant = TRAITS[vector.indexOf(Math.max(...vector))];
+      const lines = TRAIT_LINES[dominant] ?? TRAIT_LINES.Luck;
+      const opener = OPENERS[Math.floor(rng() * OPENERS.length)];
+      const line = lines[Math.floor(rng() * lines.length)];
+      const closer = CLOSERS[Math.floor(rng() * CLOSERS.length)];
+      return `${opener} ${line}. ${closer}`;
+    }
+    async function fetchAIFortune(vector: number[], archetypeName: string): Promise<string> {
+      if (!canCallAI()) {
+        return new Promise((resolve) => {
+          showRateLimitModal(() => resolve(localFortuneFallback(vector)));
+        });
+      }
+      const dominant = TRAITS[vector.indexOf(Math.max(...vector))];
+      const prompt = `Write one short, warm, one-sentence fortune-teller prediction (under 30 words, no preamble) for someone whose reading leans strongly toward ${dominant}, archetype "${archetypeName}".`;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}`, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) throw new Error(`AI endpoint returned ${res.status}`);
+        const text = (await res.text()).trim();
+        if (!text) throw new Error("empty AI response");
+        return text;
+      } catch (err) {
+        console.warn("AI fortune unavailable, using offline oracle:", err);
+        return localFortuneFallback(vector);
+      }
+    }
+
+    // ---------- try/catch + sanitized URL param parsing (Destiny Link) ----------
+    type IncomingFate = { v: number[]; n: string } | null;
+    function parseDestinyParam(): IncomingFate {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get("fate");
+        if (!raw) return null;
+        const decoded = JSON.parse(atob(raw));
+        if (!Array.isArray(decoded.v) || decoded.v.length !== TRAIT_COUNT || typeof decoded.n !== "string") {
+          return null;
+        }
+        if (!decoded.v.every((n: unknown) => typeof n === "number" && Number.isFinite(n))) return null;
+        return { v: decoded.v, n: decoded.n.slice(0, 60) }; // never trust raw string length either
+      } catch (err) {
+        console.warn("Corrupt or tampered destiny link, ignoring:", err);
+        return null;
+      }
+    }
+    function encodeDestinyLink(vector: number[], archetypeName: string): string {
+      const payload = btoa(JSON.stringify({ v: vector, n: archetypeName }));
+      const url = new URL(window.location.href);
+      url.search = `?fate=${payload}`;
+      return url.toString();
+    }
+
+    // ---------- state ----------
+    const state: {
+      screen: Screen;
+      mode: Mode | null;
+      questions: QuestionDef[];
+      qIndex: number;
+      player: 1 | 2;
+      vectors: [number[], number[]];
+      incoming: IncomingFate;
+      aiText: string | null;
+    } = {
+      screen: "mode",
+      mode: null,
+      questions: [],
+      qIndex: 0,
+      player: 1,
+      vectors: [new Array(TRAIT_COUNT).fill(0), new Array(TRAIT_COUNT).fill(0)],
+      incoming: null,
+      aiText: null,
+    };
+
+    const app = document.getElementById("app")!;
+
+    function startQuiz(mode: Mode) {
+      state.mode = mode;
+      state.questions = pickQuestions(8);
+      state.qIndex = 0;
+      state.player = 1;
+      state.vectors = [new Array(TRAIT_COUNT).fill(0), new Array(TRAIT_COUNT).fill(0)];
+      state.screen = "quiz";
+      render();
+    }
+
+    function answer(optionIndex: number) {
+      const q = state.questions[state.qIndex];
+      const opt = q.options[optionIndex];
+      const pIdx = state.player - 1;
+      opt.vector.forEach((v, i) => { state.vectors[pIdx][i] += v; });
+
+      const isLast = state.qIndex === state.questions.length - 1;
+      if (state.mode === "pass" && isLast && state.player === 1) {
+        state.player = 2;
+        state.qIndex = 0;
+        render();
+        return;
+      }
+      if (isLast) {
+        finishQuiz();
+        return;
+      }
+      state.qIndex += 1;
+      render();
+    }
+
+    async function finishQuiz() {
+      if (state.mode === "pass") {
+        state.screen = "pass-result";
+        render();
+        return;
+      }
+      const vector = state.vectors[0];
+      const archetype = matchArchetype(vector);
+      app.innerHTML = `<div class="flex-1 flex items-center justify-center text-sm text-[#9490A8]">Consulting the oracle…</div>`;
+      state.aiText = await fetchAIFortune(vector, archetype.name);
+      state.screen = state.incoming ? "destiny-result" : "result";
+      render();
+    }
+
+    // ---------- rendering ----------
+    function render() {
+      if (state.screen === "mode") return renderMode();
+      if (state.screen === "quiz") return renderQuiz();
+      if (state.screen === "result") return renderResult();
+      if (state.screen === "pass-result") return renderPassResult();
+      if (state.screen === "destiny-incoming") return renderDestinyIncoming();
+      if (state.screen === "destiny-result") return renderResult(); // reuses result view + incoming compare block
+    }
+
+    function shell(inner: string) {
+      app.innerHTML = `
+        <header class="flex items-center justify-between py-2 mb-8">
+          <a href="/" class="flex items-center gap-2 text-[#9490A8] text-sm hover:text-[#E8C766] transition">← Hub</a>
+          <div class="flex items-center gap-2 font-serif font-bold text-[#B45CFF] tracking-wide">✦ AI Fortune Teller</div>
+        </header>
+        ${inner}
+      `;
+    }
+
+    function glassCard(inner: string, extraClass = "") {
+      return `<div class="rounded-2xl p-6 bg-white/[0.04] backdrop-blur-xl border border-white/10 ${extraClass}">${inner}</div>`;
+    }
+
+    function renderMode() {
+      shell(`
+        <section class="flex-1 flex flex-col items-center justify-center text-center gap-8">
+          <div>
+            <p class="uppercase tracking-[0.14em] text-[11px] text-[#B45CFF] font-bold mb-3">AI-assisted · offline-safe · zero login</p>
+            <h1 class="text-3xl md:text-4xl font-serif font-bold mb-3">What does fate have queued up for you?</h1>
+            <p class="text-[#9490A8] max-w-md mx-auto text-sm leading-relaxed">Eight questions, real AI-written fortunes when available, a solid offline oracle when it isn't.</p>
+          </div>
+          <div class="grid gap-4 w-full max-w-md">
+            <button data-mode="solo" class="mode-btn text-left rounded-2xl p-5 bg-white/[0.04] backdrop-blur-xl border border-white/10 hover:border-[#B45CFF] transition">
+              <h3 class="font-bold mb-1">Solo Reading</h3>
+              <p class="text-xs text-[#9490A8]">Take your time with each question.</p>
+            </button>
+            <button data-mode="pass" class="mode-btn text-left rounded-2xl p-5 bg-white/[0.04] backdrop-blur-xl border border-white/10 hover:border-[#7C5CFF] transition">
+              <h3 class="font-bold mb-1">Pass &amp; Play</h3>
+              <p class="text-xs text-[#9490A8]">Two people, one device, one joint reading.</p>
+            </button>
+            <button data-mode="destiny" class="mode-btn text-left rounded-2xl p-5 bg-white/[0.04] backdrop-blur-xl border border-white/10 hover:border-[#E8C766] transition">
+              <h3 class="font-bold mb-1">Destiny Link</h3>
+              <p class="text-xs text-[#9490A8]">Get a link, send it, compare fates when they finish.</p>
+            </button>
+          </div>
+        </section>
+      `);
+      app.querySelectorAll<HTMLButtonElement>(".mode-btn").forEach((btn) => {
+        btn.addEventListener("click", () => startQuiz(btn.dataset.mode as Mode));
+      });
+    }
+
+    function renderDestinyIncoming() {
+      shell(`
+        <section class="flex-1 flex flex-col items-center justify-center text-center gap-6">
+          <p class="uppercase tracking-[0.14em] text-[11px] text-[#E8C766] font-bold">A friend sent you their fate</p>
+          <h1 class="text-2xl font-serif font-bold">Answer the same questions<br/>and see how your fates compare.</h1>
+          <button id="accept-destiny" class="px-8 py-3 rounded-full font-bold bg-gradient-to-br from-[#E8C766] to-[#C9A227] text-[#1a1408]">Begin your reading</button>
+        </section>
+      `);
+      document.getElementById("accept-destiny")?.addEventListener("click", () => startQuiz("destiny"));
+    }
+
+    function renderQuiz() {
+      const q = state.questions[state.qIndex];
+      const playerLabel = state.mode === "pass" ? `Player ${state.player} · ` : "";
+      shell(`
+        <section class="flex-1 flex flex-col gap-5">
+          <div class="flex items-center justify-between text-xs text-[#9490A8]">
+            <span>${playerLabel}Question ${state.qIndex + 1} of ${state.questions.length}</span>
+          </div>
+          <div class="relative rounded-2xl overflow-hidden h-48 md:h-56 bg-[#14131f]">
+            <img src="${q.card}" alt="" class="w-full h-full object-cover object-top" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent"></div>
+            <h2 class="absolute bottom-4 left-5 right-5 text-lg md:text-xl font-serif font-bold">${escapeHTML(q.text)}</h2>
+          </div>
+          <div class="grid gap-3">
+            ${q.options.map((opt, i) => `
+              <button data-i="${i}" class="opt-btn text-left px-5 py-4 rounded-xl bg-white/[0.04] backdrop-blur-xl border border-white/10 hover:border-[#B45CFF] active:scale-[0.98] transition text-sm">
+                ${escapeHTML(opt.label)}
+              </button>
+            `).join("")}
+          </div>
+        </section>
+      `);
+      app.querySelectorAll<HTMLButtonElement>(".opt-btn").forEach((btn) => {
+        btn.addEventListener("click", () => answer(Number(btn.dataset.i)));
+        btn.addEventListener("touchstart", () => btn.classList.add("scale-[0.98]"), { passive: true });
+        btn.addEventListener("touchend", () => btn.classList.remove("scale-[0.98]"), { passive: true });
+      });
+    }
+
+    function traitBars(vector: number[], color: string) {
+      const max = Math.max(...vector, 1);
+      return TRAITS.map((t, i) => `
+        <div class="flex items-center gap-3 text-xs">
+          <span class="w-20 text-[#9490A8] shrink-0">${t}</span>
+          <div class="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+            <div class="h-full rounded-full" style="width:${(vector[i] / max) * 100}%; background:${color}"></div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function renderResult() {
+      const vector = state.vectors[0];
+      const archetype = matchArchetype(vector);
+      const cardFile = ARCHETYPE_CARD[archetype.name] ?? "RWS_Tarot_17_Star.jpg";
+      const link = encodeDestinyLink(vector, archetype.name);
+
+      const compareBlock = state.screen === "destiny-result" && state.incoming ? (() => {
+        const theirArchetype = matchArchetype(state.incoming!.v);
+        const matchPct = Math.round(cosineSimilarity(vector, state.incoming!.v) * 100);
+        return `
+          <div class="mt-5 pt-5 border-t border-white/10">
+            <p class="text-xs uppercase tracking-wide text-[#9490A8] mb-2">vs ${escapeHTML(state.incoming!.n)}</p>
+            <h3 class="font-serif font-bold text-xl mb-3">${matchPct}% aligned fates</h3>
+            <div class="grid gap-2 text-left">${traitBars(state.incoming!.v, "#7C5CFF")}</div>
+            <p class="text-xs text-[#9490A8] mt-2">Their archetype: ${escapeHTML(theirArchetype.name)}</p>
+          </div>
+        `;
+      })() : "";
+
+      shell(`
+        <section class="flex-1 flex flex-col items-center gap-6 text-center">
+          <p class="uppercase tracking-[0.14em] text-[11px] text-[#B45CFF] font-bold">Your reading</p>
+          <div id="result-card" class="w-full max-w-sm rounded-2xl overflow-hidden bg-white/[0.04] backdrop-blur-xl border border-[#B45CFF]/40">
+            <div class="w-full h-52 flex items-center justify-center bg-[#14131f] overflow-hidden">
+              <img src="${WIKI_FILE(cardFile)}" alt="" class="w-full h-full object-cover object-top" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" />
+            </div>
+            <div class="p-7 text-left">
+              <h1 class="text-2xl font-serif font-bold mb-1 text-center">${escapeHTML(archetype.name)}</h1>
+              <p class="text-xs text-[#9490A8] mb-4 text-center">${escapeHTML(archetype.desc)}</p>
+              <p class="text-sm italic text-[#F3ECE0]/90 mb-5 leading-relaxed">"${escapeHTML(state.aiText ?? "")}"</p>
+              <div class="grid gap-2">${traitBars(vector, "#B45CFF")}</div>
+              ${compareBlock}
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-3 justify-center">
+            <button id="download-btn" class="px-5 py-3 rounded-full font-bold text-sm bg-gradient-to-br from-[#E8C766] to-[#C9A227] text-[#1a1408]">Save as image</button>
+            ${state.screen !== "destiny-result" ? `<button id="share-btn" class="px-5 py-3 rounded-full font-bold text-sm border border-white/20 hover:border-[#7C5CFF]">Destiny Link</button>` : ""}
+            <button id="again-btn" class="px-5 py-3 rounded-full font-bold text-sm border border-white/20 hover:border-[#E8C766]">Read again</button>
+          </div>
+          <p id="share-link" class="text-xs text-[#9490A8] break-all max-w-sm hidden"></p>
+        </section>
+      `);
+      wireResultButtons(link);
+    }
+
+    function renderPassResult() {
+      const [v1, v2] = state.vectors;
+      const a1 = matchArchetype(v1);
+      const a2 = matchArchetype(v2);
+      const matchPct = Math.round(cosineSimilarity(v1, v2) * 100);
+      shell(`
+        <section class="flex-1 flex flex-col items-center gap-6 text-center">
+          <p class="uppercase tracking-[0.14em] text-[11px] text-[#7C5CFF] font-bold">Joint reading</p>
+          <div id="result-card" class="w-full max-w-lg rounded-2xl p-6 bg-white/[0.04] backdrop-blur-xl border border-[#7C5CFF]/40">
+            <h1 class="text-3xl font-serif font-bold mb-1">${matchPct}% aligned fates</h1>
+            <div class="grid grid-cols-2 gap-4 text-left mt-5">
+              <div>
+                <h3 class="font-bold text-sm mb-2">Player 1 — ${escapeHTML(a1.name)}</h3>
+                <div class="grid gap-2">${traitBars(v1, "#7C5CFF")}</div>
+              </div>
+              <div>
+                <h3 class="font-bold text-sm mb-2">Player 2 — ${escapeHTML(a2.name)}</h3>
+                <div class="grid gap-2">${traitBars(v2, "#FF5C8A")}</div>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button id="download-btn" class="px-5 py-3 rounded-full font-bold text-sm bg-gradient-to-br from-[#E8C766] to-[#C9A227] text-[#1a1408]">Save as image</button>
+            <button id="again-btn" class="px-5 py-3 rounded-full font-bold text-sm border border-white/20 hover:border-[#E8C766]">Read again</button>
+          </div>
+        </section>
+      `);
+      wireResultButtons(null);
+    }
+
+    function wireResultButtons(shareLink: string | null) {
+      document.getElementById("again-btn")?.addEventListener("click", () => {
+        const url = new URL(window.location.href);
+        url.search = "";
+        window.history.replaceState({}, "", url.toString());
+        state.incoming = null;
+        state.aiText = null;
+        state.screen = "mode";
+        render();
+      });
+      document.getElementById("download-btn")?.addEventListener("click", async () => {
+        const card = document.getElementById("result-card");
+        // @ts-ignore html2canvas loaded globally via CDN script tag
+        if (card && window.html2canvas) {
+          // @ts-ignore
+          const canvas = await window.html2canvas(card, { useCORS: true, backgroundColor: "#100f19" });
+          const link = document.createElement("a");
+          link.download = "fortune-result.png";
+          link.href = canvas.toDataURL("image/png");
+          link.click();
+        }
+      });
+      if (shareLink) {
+        document.getElementById("share-btn")?.addEventListener("click", () => {
+          const p = document.getElementById("share-link");
+          if (p) { p.textContent = shareLink; p.classList.remove("hidden"); }
+          navigator.clipboard?.writeText(shareLink).catch(() => {});
+        });
+      }
+    }
+
+    // ---------- boot ----------
+    const incoming = parseDestinyParam();
+    if (incoming) {
+      state.incoming = incoming;
+      state.screen = "destiny-incoming";
+    }
+    render();
+  </script>
+</body>
+</html>

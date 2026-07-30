@@ -1,0 +1,601 @@
+---
+import '../styles/global.css';
+---
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Soulmate Quiz — Arcane Arcade</title>
+  <meta name="description" content="A fair, cryptographically-randomised 10 question soulmate quiz. Solo, pass-and-play, or challenge a friend." />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+</head>
+<body class="bg-[#0B0B14] text-[#F3ECE0] min-h-screen font-sans">
+  <div id="app" class="max-w-3xl mx-auto px-5 py-6 min-h-screen flex flex-col"></div>
+
+  <script>
+    /* ============================================================
+       SOULMATE QUIZ — client-side, zero backend, zero storage.
+       State lives in memory + optional URL hash (Challenge Friend).
+       ============================================================ */
+
+    type OptionDef = { label: string; vector: number[] };
+    type QuestionDef = { id: number; text: string; img: string; options: OptionDef[] };
+    type Persona = { name: string; desc: string; vector: number[] };
+    type Mode = "solo" | "pass" | "challenge";
+
+    const TRAITS = ["Independence", "Empathy", "Ambition", "Spontaneity", "Intellect"];
+    const TRAIT_COUNT = TRAITS.length;
+
+    // ---------- crypto-secure randomness ----------
+    function secureRandomInt(maxExclusive: number): number {
+      const arr = new Uint32Array(1);
+      const limit = 0xFFFFFFFF - (0xFFFFFFFF % maxExclusive);
+      let val: number;
+      do {
+        crypto.getRandomValues(arr);
+        val = arr[0];
+      } while (val >= limit);
+      return val % maxExclusive;
+    }
+    function secureShuffle<T>(arr: T[]): T[] {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = secureRandomInt(i + 1);
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    // ---------- image pool (Picsum — no keys, no breakage) ----------
+    const IMG_IDS = [1011, 1012, 1013, 1014, 1015, 1016, 1018, 1019, 1020, 1021,
+      1022, 1023, 1024, 1025, 1027, 1028, 1029, 1031, 1033, 1035,
+      1036, 1037, 1039, 1041, 1042, 1043, 1044, 1045, 1047, 1049];
+    function imgFor(id: number) {
+      return `https://picsum.photos/id/${IMG_IDS[id % IMG_IDS.length]}/1200/700`;
+    }
+
+    // ---------- question pool ----------
+    // Structured so this array can scale to 400 questions without any code
+    // changes — just append more { id, text, img, options } objects.
+    const QUESTIONS: QuestionDef[] = [
+      { id: 0, text: "Friday night, no plans yet. What actually happens?", img: imgFor(0), options: [
+        { label: "I already have three backup plans", vector: [1, 0, 1, 0, 0] },
+        { label: "Whoever texts first decides", vector: [0, 1, 0, 1, 0] },
+        { label: "Quiet night, good book", vector: [1, 0, 0, 0, 1] },
+      ]},
+      { id: 1, text: "A friend is venting about their day. You:", img: imgFor(1), options: [
+        { label: "Listen first, advice later if asked", vector: [0, 1, 0, 0, 0] },
+        { label: "Jump straight to solving it", vector: [0, 0, 1, 0, 1] },
+        { label: "Distract them with something fun", vector: [0, 0, 0, 1, 0] },
+      ]},
+      { id: 2, text: "Dream Tuesday afternoon looks like:", img: imgFor(2), options: [
+        { label: "Working on a big personal goal", vector: [1, 0, 1, 0, 0] },
+        { label: "Spontaneous road trip, no map", vector: [0, 0, 0, 1, 0] },
+        { label: "Deep-diving a topic that fascinates you", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 3, text: "Your ideal partner texts you first with:", img: imgFor(3), options: [
+        { label: "\"Thinking of you — how was your day?\"", vector: [0, 1, 0, 0, 0] },
+        { label: "\"Random idea — let's do X tonight\"", vector: [0, 0, 0, 1, 0] },
+        { label: "A genuinely interesting article", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 4, text: "When plans fall through last minute, you:", img: imgFor(4), options: [
+        { label: "Already made a backup", vector: [1, 0, 1, 0, 0] },
+        { label: "Shrug, go with whatever happens next", vector: [0, 0, 0, 1, 0] },
+        { label: "Check in on whoever cancelled", vector: [0, 1, 0, 0, 0] },
+      ]},
+      { id: 5, text: "Your idea of a great gift is:", img: imgFor(5), options: [
+        { label: "Something thoughtful and personal", vector: [0, 1, 0, 0, 0] },
+        { label: "An experience, not a thing", vector: [0, 0, 0, 1, 0] },
+        { label: "Something tied to a shared goal", vector: [0, 0, 1, 0, 0] },
+        { label: "A great book or documentary", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 6, text: "Five years from now, you most want to have:", img: imgFor(6), options: [
+        { label: "Built something you're proud of", vector: [0, 0, 1, 0, 0] },
+        { label: "Deep, steady relationships", vector: [0, 1, 0, 0, 0] },
+        { label: "A life full of stories, not a plan", vector: [0, 0, 0, 1, 0] },
+        { label: "Learned far more than you know now", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 7, text: "A disagreement with someone you care about — your move:", img: imgFor(7), options: [
+        { label: "Say exactly what you need, calmly", vector: [1, 0, 0, 0, 0] },
+        { label: "Try to understand their side first", vector: [0, 1, 0, 0, 0] },
+        { label: "Take space, come back with a clear head", vector: [1, 0, 0, 0, 1] },
+      ]},
+      { id: 8, text: "You're most attracted to someone who:", img: imgFor(8), options: [
+        { label: "Has their own full life going on", vector: [1, 0, 1, 0, 0] },
+        { label: "Makes you feel deeply understood", vector: [0, 1, 0, 0, 0] },
+        { label: "Keeps things unpredictable", vector: [0, 0, 0, 1, 0] },
+        { label: "Can talk about anything for hours", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 9, text: "Sunday morning, your default is:", img: imgFor(9), options: [
+        { label: "Gym, errands, getting ahead of the week", vector: [1, 0, 1, 0, 0] },
+        { label: "Slow coffee, checking in with people", vector: [0, 1, 0, 0, 0] },
+        { label: "Wherever the day takes you", vector: [0, 0, 0, 1, 0] },
+        { label: "A podcast or long read", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 10, text: "When someone needs comforting, you offer:", img: imgFor(10), options: [
+        { label: "Space and quiet presence", vector: [1, 1, 0, 0, 0] },
+        { label: "A plan to fix the actual problem", vector: [0, 0, 1, 0, 1] },
+        { label: "A distraction to lighten the mood", vector: [0, 0, 0, 1, 0] },
+      ]},
+      { id: 11, text: "Your biggest relationship dealbreaker:", img: imgFor(11), options: [
+        { label: "No ambition or direction", vector: [0, 0, 1, 0, 0] },
+        { label: "Can't be emotionally honest", vector: [0, 1, 0, 0, 0] },
+        { label: "Way too controlling", vector: [1, 0, 0, 0, 0] },
+        { label: "Zero curiosity about the world", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 12, text: "A spontaneous 2am adventure — you're in if:", img: imgFor(12), options: [
+        { label: "Always. Say less.", vector: [0, 0, 0, 1, 0] },
+        { label: "Only with the right person", vector: [0, 1, 0, 1, 0] },
+        { label: "I need at least a little warning", vector: [1, 0, 0, 0, 0] },
+      ]},
+      { id: 13, text: "How you show love, mostly:", img: imgFor(13), options: [
+        { label: "Acts of service — I just handle things", vector: [0, 0, 1, 0, 0] },
+        { label: "Words, checking in, really listening", vector: [0, 1, 0, 0, 0] },
+        { label: "Doing something fun and unexpected", vector: [0, 0, 0, 1, 0] },
+        { label: "Sharing ideas, teaching each other things", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 14, text: "Your group chat mostly sees you as:", img: imgFor(14), options: [
+        { label: "The one who's always doing something", vector: [0, 0, 1, 0, 0] },
+        { label: "The one who actually remembers details", vector: [0, 1, 0, 0, 0] },
+        { label: "The chaos gremlin, affectionately", vector: [0, 0, 0, 1, 0] },
+        { label: "The one who overexplains everything", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 15, text: "A first date that would actually impress you:", img: imgFor(15), options: [
+        { label: "They clearly planned something thoughtful", vector: [0, 1, 0, 0, 0] },
+        { label: "They suggested something we've never done", vector: [0, 0, 0, 1, 0] },
+        { label: "Genuinely great, deep conversation", vector: [0, 0, 0, 0, 1] },
+        { label: "They talked about their goals with fire", vector: [0, 0, 1, 0, 0] },
+      ]},
+      { id: 16, text: "When you're stressed, you need:", img: imgFor(16), options: [
+        { label: "Time alone to reset", vector: [1, 0, 0, 0, 0] },
+        { label: "Someone to just sit with you", vector: [0, 1, 0, 0, 0] },
+        { label: "To do something physical or new", vector: [0, 0, 0, 1, 0] },
+      ]},
+      { id: 17, text: "Money mindset, honestly:", img: imgFor(17), options: [
+        { label: "Save and invest with a plan", vector: [0, 0, 1, 0, 0] },
+        { label: "Spend on experiences and people", vector: [0, 1, 0, 1, 0] },
+        { label: "Whatever, it works itself out", vector: [0, 0, 0, 1, 0] },
+      ]},
+      { id: 18, text: "You'd rather your partner be:", img: imgFor(18), options: [
+        { label: "Independent, with their own world", vector: [1, 0, 0, 0, 0] },
+        { label: "Deeply in sync emotionally", vector: [0, 1, 0, 0, 0] },
+        { label: "Driven and going somewhere", vector: [0, 0, 1, 0, 0] },
+        { label: "Endlessly curious and sharp", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 19, text: "Vacation style:", img: imgFor(19), options: [
+        { label: "Fully planned itinerary", vector: [0, 0, 1, 0, 0] },
+        { label: "One flight booked, rest figured out there", vector: [0, 0, 0, 1, 0] },
+        { label: "Museums, history, learning something", vector: [0, 0, 0, 0, 1] },
+        { label: "Wherever my people are going", vector: [0, 1, 0, 0, 0] },
+      ]},
+      { id: 20, text: "The compliment that means the most:", img: imgFor(20), options: [
+        { label: "\"You're so grounded and self-sufficient\"", vector: [1, 0, 0, 0, 0] },
+        { label: "\"You make people feel so cared for\"", vector: [0, 1, 0, 0, 0] },
+        { label: "\"You're going to do big things\"", vector: [0, 0, 1, 0, 0] },
+        { label: "\"You're one of the smartest people I know\"", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 21, text: "Conflict style with a partner:", img: imgFor(21), options: [
+        { label: "Direct, address it immediately", vector: [1, 0, 1, 0, 0] },
+        { label: "Gentle, prioritize their feelings", vector: [0, 1, 0, 0, 0] },
+        { label: "Need a minute, then come back calm", vector: [1, 0, 0, 0, 1] },
+      ]},
+      { id: 22, text: "Your calendar this weekend probably has:", img: imgFor(22), options: [
+        { label: "Nothing. Blissfully nothing.", vector: [0, 0, 0, 1, 0] },
+        { label: "A goal I'm chasing", vector: [0, 0, 1, 0, 0] },
+        { label: "Time blocked for people I love", vector: [0, 1, 0, 0, 0] },
+        { label: "A class, book, or documentary queued up", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 23, text: "You fall for people through:", img: imgFor(23), options: [
+        { label: "Watching them handle their own life well", vector: [1, 0, 1, 0, 0] },
+        { label: "Feeling truly seen by them", vector: [0, 1, 0, 0, 0] },
+        { label: "Shared spontaneity and fun", vector: [0, 0, 0, 1, 0] },
+        { label: "Conversations that go somewhere real", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 24, text: "Biggest turn-off in dating:", img: imgFor(24), options: [
+        { label: "Clinginess, no room to breathe", vector: [1, 0, 0, 0, 0] },
+        { label: "Emotional unavailability", vector: [0, 1, 0, 0, 0] },
+        { label: "No goals, no direction at all", vector: [0, 0, 1, 0, 0] },
+        { label: "Boring, same-old-same-old energy", vector: [0, 0, 0, 1, 0] },
+      ]},
+      { id: 25, text: "How you make big decisions:", img: imgFor(25), options: [
+        { label: "Alone, then inform people after", vector: [1, 0, 0, 0, 0] },
+        { label: "Talk it through with people I trust", vector: [0, 1, 0, 0, 0] },
+        { label: "Research every angle first", vector: [0, 0, 0, 0, 1] },
+        { label: "Go with the gut, adjust later", vector: [0, 0, 0, 1, 0] },
+      ]},
+      { id: 26, text: "Your love language, if you had to pick one:", img: imgFor(26), options: [
+        { label: "Quality time, undivided", vector: [0, 1, 0, 0, 0] },
+        { label: "Doing things that make life easier", vector: [0, 0, 1, 0, 0] },
+        { label: "Trying new things together", vector: [0, 0, 0, 1, 0] },
+      ]},
+      { id: 27, text: "The last thing you nerded out about:", img: imgFor(27), options: [
+        { label: "A personal project or goal", vector: [0, 0, 1, 0, 0] },
+        { label: "A person or relationship", vector: [0, 1, 0, 0, 0] },
+        { label: "A random obsession, no reason needed", vector: [0, 0, 0, 1, 0] },
+        { label: "A topic I fell down a rabbit hole on", vector: [0, 0, 0, 0, 1] },
+      ]},
+      { id: 28, text: "If your partner needed space for a week, you'd:", img: imgFor(28), options: [
+        { label: "Totally fine, I have my own life anyway", vector: [1, 0, 0, 0, 0] },
+        { label: "Check in gently once, respect it", vector: [0, 1, 0, 0, 0] },
+        { label: "Use the time to start something new", vector: [0, 0, 1, 1, 0] },
+      ]},
+      { id: 29, text: "You feel most like yourself when:", img: imgFor(29), options: [
+        { label: "Making real progress on something", vector: [0, 0, 1, 0, 0] },
+        { label: "Surrounded by people who get you", vector: [0, 1, 0, 0, 0] },
+        { label: "Doing something totally unplanned", vector: [0, 0, 0, 1, 0] },
+        { label: "Learning something that changes how you think", vector: [0, 0, 0, 0, 1] },
+      ]},
+    ];
+
+    // ---------- personas (winner via cosine similarity) ----------
+    const PERSONA_IMG_IDS = [1050, 1060, 1067, 1074, 1080, 1084];
+    function personaImg(index: number) {
+      return `https://picsum.photos/id/${PERSONA_IMG_IDS[index % PERSONA_IMG_IDS.length]}/700/420`;
+    }
+
+    const PERSONAS: Persona[] = [
+      { name: "The Free Spirit", desc: "Unplanned, magnetic, allergic to routine.", vector: [0.3, 0.2, 0.1, 1, 0.2] },
+      { name: "The Nurturer", desc: "Warm, attuned, makes people feel safe.", vector: [0.2, 1, 0.1, 0.2, 0.2] },
+      { name: "The Trailblazer", desc: "Ambitious, decisive, always building something.", vector: [0.4, 0.2, 1, 0.2, 0.3] },
+      { name: "The Philosopher", desc: "Curious, thoughtful, thinks in questions.", vector: [0.3, 0.2, 0.2, 0.2, 1] },
+      { name: "The Anchor", desc: "Steady, independent, quietly devoted.", vector: [0.9, 0.6, 0.3, 0.1, 0.3] },
+      { name: "The Wildcard", desc: "Sharp and spontaneous, keeps everyone on their toes.", vector: [0.3, 0.2, 0.2, 0.8, 0.7] },
+    ];
+
+    function cosineSimilarity(a: number[], b: number[]): number {
+      let dot = 0, magA = 0, magB = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        magA += a[i] * a[i];
+        magB += b[i] * b[i];
+      }
+      if (magA === 0 || magB === 0) return 0;
+      return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+    }
+
+    function matchPersona(vector: number[]): Persona {
+      let best = PERSONAS[0];
+      let bestScore = -Infinity;
+      for (const p of PERSONAS) {
+        const score = cosineSimilarity(vector, p.vector);
+        if (score > bestScore) { bestScore = score; best = p; }
+      }
+      return best;
+    }
+
+    // ---------- app state ----------
+    type State = {
+      screen: "mode" | "quiz" | "solo-result" | "pass-result" | "challenge-incoming" | "challenge-result";
+      mode: Mode | null;
+      questions: QuestionDef[];
+      qIndex: number;
+      player: 1 | 2;
+      vectors: [number[], number[]];
+      incomingVector: number[] | null;
+      incomingName: string | null;
+    };
+
+    const state: State = {
+      screen: "mode",
+      mode: null,
+      questions: [],
+      qIndex: 0,
+      player: 1,
+      vectors: [new Array(TRAIT_COUNT).fill(0), new Array(TRAIT_COUNT).fill(0)],
+      incomingVector: null,
+      incomingName: null,
+    };
+
+    // ---------- try/catch URL hash parsing (Challenge Friend) ----------
+    function parseIncomingChallenge(): void {
+      try {
+        const hash = window.location.hash.replace(/^#/, "");
+        const params = new URLSearchParams(hash);
+        const payload = params.get("challenge");
+        if (!payload) return;
+        const decoded = JSON.parse(atob(payload));
+        if (Array.isArray(decoded.v) && decoded.v.length === TRAIT_COUNT && typeof decoded.n === "string") {
+          state.incomingVector = decoded.v;
+          state.incomingName = decoded.n;
+          state.screen = "challenge-incoming";
+        }
+      } catch (err) {
+        // Corrupt or tampered link — fail quietly, just start fresh
+        console.warn("Could not parse challenge link:", err);
+      }
+    }
+
+    function encodeChallenge(vector: number[], name: string): string {
+      const payload = btoa(JSON.stringify({ v: vector, n: name }));
+      return `${window.location.origin}${window.location.pathname}#challenge=${payload}`;
+    }
+
+    // ---------- app root ----------
+    const app = document.getElementById("app")!;
+
+    function startQuiz(mode: Mode) {
+      state.mode = mode;
+      state.questions = secureShuffle(QUESTIONS).slice(0, 10);
+      state.qIndex = 0;
+      state.player = 1;
+      state.vectors = [new Array(TRAIT_COUNT).fill(0), new Array(TRAIT_COUNT).fill(0)];
+      state.screen = "quiz";
+      render();
+    }
+
+    function answer(optionIndex: number) {
+      const q = state.questions[state.qIndex];
+      const opt = q.options[optionIndex];
+      const pIdx = state.player - 1;
+      opt.vector.forEach((v, i) => { state.vectors[pIdx][i] += v; });
+
+      const isLastQuestionForPlayer = state.qIndex === state.questions.length - 1;
+
+      if (state.mode === "pass" && isLastQuestionForPlayer && state.player === 1) {
+        state.player = 2;
+        state.qIndex = 0;
+        render();
+        return;
+      }
+
+      if (isLastQuestionForPlayer) {
+        finishQuiz();
+        return;
+      }
+
+      state.qIndex += 1;
+      render();
+    }
+
+    function finishQuiz() {
+      if (state.mode === "solo") {
+        state.screen = "solo-result";
+      } else if (state.mode === "pass") {
+        state.screen = "pass-result";
+      } else if (state.mode === "challenge") {
+        state.screen = state.incomingVector ? "challenge-result" : "solo-result";
+      }
+      render();
+    }
+
+    // ---------- rendering ----------
+    function render() {
+      if (state.screen === "mode") return renderMode();
+      if (state.screen === "quiz") return renderQuiz();
+      if (state.screen === "solo-result") return renderSoloResult();
+      if (state.screen === "pass-result") return renderPassResult();
+      if (state.screen === "challenge-incoming") return renderChallengeIncoming();
+      if (state.screen === "challenge-result") return renderChallengeResult();
+    }
+
+    function shell(inner: string) {
+      app.innerHTML = `
+        <header class="flex items-center justify-between py-2 mb-8">
+          <a href="/" class="flex items-center gap-2 text-[#9490A8] text-sm hover:text-[#E8C766] transition">
+            ← Hub
+          </a>
+          <div class="flex items-center gap-2 font-serif font-bold text-[#E8C766] tracking-wide">✦ Soulmate Quiz</div>
+        </header>
+        ${inner}
+      `;
+    }
+
+    function renderMode() {
+      shell(`
+        <section class="flex-1 flex flex-col items-center justify-center text-center gap-8">
+          <div>
+            <p class="uppercase tracking-[0.14em] text-[11px] text-[#FF5C8A] font-bold mb-3">10 questions · zero data stored</p>
+            <h1 class="text-3xl md:text-4xl font-serif font-bold mb-3">Who's your real match?</h1>
+            <p class="text-[#9490A8] max-w-md mx-auto text-sm leading-relaxed">Every question is picked fresh with your browser's crypto RNG. Nothing you answer is ever saved.</p>
+          </div>
+          <div class="grid gap-4 w-full max-w-md">
+            <button data-mode="solo" class="mode-btn group text-left rounded-2xl p-5 bg-gradient-to-br from-[#14131f] to-[#100f19] border border-white/10 hover:border-[#FF5C8A] transition">
+              <h3 class="font-bold mb-1">Solo</h3>
+              <p class="text-xs text-[#9490A8]">Take the quiz, meet your matching persona.</p>
+            </button>
+            <button data-mode="pass" class="mode-btn group text-left rounded-2xl p-5 bg-gradient-to-br from-[#14131f] to-[#100f19] border border-white/10 hover:border-[#7C5CFF] transition">
+              <h3 class="font-bold mb-1">Pass &amp; Play</h3>
+              <p class="text-xs text-[#9490A8]">Two people, one device — see how you match each other.</p>
+            </button>
+            <button data-mode="challenge" class="mode-btn group text-left rounded-2xl p-5 bg-gradient-to-br from-[#14131f] to-[#100f19] border border-white/10 hover:border-[#E8C766] transition">
+              <h3 class="font-bold mb-1">Challenge a Friend</h3>
+              <p class="text-xs text-[#9490A8]">Take it, get a link, send it — see your match when they finish.</p>
+            </button>
+          </div>
+        </section>
+      `);
+      app.querySelectorAll<HTMLButtonElement>(".mode-btn").forEach((btn) => {
+        btn.addEventListener("click", () => startQuiz(btn.dataset.mode as Mode));
+      });
+    }
+
+    function renderChallengeIncoming() {
+      shell(`
+        <section class="flex-1 flex flex-col items-center justify-center text-center gap-6">
+          <p class="uppercase tracking-[0.14em] text-[11px] text-[#E8C766] font-bold">A friend challenged you</p>
+          <h1 class="text-2xl font-serif font-bold">They've already answered.<br/>Take the quiz to see your match.</h1>
+          <button id="accept-challenge" class="px-8 py-3 rounded-full font-bold bg-gradient-to-br from-[#E8C766] to-[#C9A227] text-[#1a1408]">Start the quiz</button>
+        </section>
+      `);
+      document.getElementById("accept-challenge")?.addEventListener("click", () => startQuiz("challenge"));
+    }
+
+    function renderQuiz() {
+      const q = state.questions[state.qIndex];
+      const playerLabel = state.mode === "pass" ? `Player ${state.player} · ` : "";
+      shell(`
+        <section class="flex-1 flex flex-col gap-5">
+          <div class="flex items-center justify-between text-xs text-[#9490A8]">
+            <span>${playerLabel}Question ${state.qIndex + 1} of ${state.questions.length}</span>
+          </div>
+          <div class="relative rounded-2xl overflow-hidden h-48 md:h-56 bg-[#14131f]">
+            <img src="${q.img}" alt="" class="w-full h-full object-cover"
+              onerror="this.onerror=null;this.src='';this.parentElement.classList.add('bg-gradient-to-br','from-[#2b2440]','to-[#100f19]');" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+            <h2 class="absolute bottom-4 left-5 right-5 text-lg md:text-xl font-serif font-bold">${q.text}</h2>
+          </div>
+          <div class="grid gap-3">
+            ${q.options.map((opt, i) => `
+              <button data-i="${i}" class="opt-btn text-left px-5 py-4 rounded-xl bg-[#14131f] border border-white/10 hover:border-[#FF5C8A] active:scale-[0.98] transition text-sm">
+                ${opt.label}
+              </button>
+            `).join("")}
+          </div>
+        </section>
+      `);
+      app.querySelectorAll<HTMLButtonElement>(".opt-btn").forEach((btn) => {
+        btn.addEventListener("click", () => answer(Number(btn.dataset.i)));
+        // touch feedback for mobile
+        btn.addEventListener("touchstart", () => btn.classList.add("scale-[0.98]"), { passive: true });
+        btn.addEventListener("touchend", () => btn.classList.remove("scale-[0.98]"), { passive: true });
+      });
+    }
+
+    function traitBars(vector: number[], color: string) {
+      const max = Math.max(...vector, 1);
+      return TRAITS.map((t, i) => `
+        <div class="flex items-center gap-3 text-xs">
+          <span class="w-24 text-[#9490A8] shrink-0">${t}</span>
+          <div class="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+            <div class="h-full rounded-full" style="width:${(vector[i] / max) * 100}%; background:${color}"></div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function renderSoloResult() {
+      const vector = state.mode === "challenge" ? state.vectors[0] : state.vectors[0];
+      const persona = matchPersona(vector);
+      const link = encodeChallenge(vector, persona.name);
+      shell(`
+        <section class="flex-1 flex flex-col items-center gap-6 text-center">
+          <p class="uppercase tracking-[0.14em] text-[11px] text-[#FF5C8A] font-bold">Your result</p>
+          <div id="result-card" class="w-full max-w-sm rounded-2xl overflow-hidden bg-gradient-to-br from-[#2b2440] to-[#100f19] border border-[#E8C766]/50">
+            <img src="${personaImg(PERSONAS.indexOf(persona))}" alt="" class="w-full h-40 object-cover"
+              onerror="this.onerror=null;this.style.display='none';" />
+            <div class="p-8">
+              <h1 class="text-2xl font-serif font-bold mb-2">${persona.name}</h1>
+              <p class="text-sm text-[#9490A8] mb-5">${persona.desc}</p>
+              <div class="grid gap-2 text-left">${traitBars(vector, "#FF5C8A")}</div>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-3 justify-center">
+            <button id="download-btn" class="px-5 py-3 rounded-full font-bold text-sm bg-gradient-to-br from-[#E8C766] to-[#C9A227] text-[#1a1408]">Save as image</button>
+            <button id="share-btn" class="px-5 py-3 rounded-full font-bold text-sm border border-white/20 hover:border-[#7C5CFF]">Challenge a friend</button>
+            <button id="again-btn" class="px-5 py-3 rounded-full font-bold text-sm border border-white/20 hover:border-[#E8C766]">Take again</button>
+          </div>
+          <p id="share-link" class="text-xs text-[#9490A8] break-all max-w-sm hidden"></p>
+        </section>
+      `);
+      wireResultButtons(link);
+    }
+
+    function renderPassResult() {
+      const [v1, v2] = state.vectors;
+      const p1 = matchPersona(v1);
+      const p2 = matchPersona(v2);
+      const matchPct = Math.round(cosineSimilarity(v1, v2) * 100);
+      shell(`
+        <section class="flex-1 flex flex-col items-center gap-6 text-center">
+          <p class="uppercase tracking-[0.14em] text-[11px] text-[#7C5CFF] font-bold">Match result</p>
+          <div id="result-card" class="w-full max-w-lg rounded-2xl p-6 bg-gradient-to-br from-[#2b2440] to-[#100f19] border border-[#7C5CFF]/50">
+            <h1 class="text-3xl font-serif font-bold mb-1">${matchPct}% match</h1>
+            <p class="text-xs text-[#9490A8] mb-5">Based on cosine similarity across five traits</p>
+            <div class="grid grid-cols-2 gap-4 text-left">
+              <div>
+                <img src="${personaImg(PERSONAS.indexOf(p1))}" alt="" class="w-full h-24 object-cover rounded-lg mb-2"
+                  onerror="this.onerror=null;this.style.display='none';" />
+                <h3 class="font-bold text-sm mb-2">Player 1 — ${p1.name}</h3>
+                <div class="grid gap-2">${traitBars(v1, "#7C5CFF")}</div>
+              </div>
+              <div>
+                <img src="${personaImg(PERSONAS.indexOf(p2))}" alt="" class="w-full h-24 object-cover rounded-lg mb-2"
+                  onerror="this.onerror=null;this.style.display='none';" />
+                <h3 class="font-bold text-sm mb-2">Player 2 — ${p2.name}</h3>
+                <div class="grid gap-2">${traitBars(v2, "#FF5C8A")}</div>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button id="download-btn" class="px-5 py-3 rounded-full font-bold text-sm bg-gradient-to-br from-[#E8C766] to-[#C9A227] text-[#1a1408]">Save as image</button>
+            <button id="again-btn" class="px-5 py-3 rounded-full font-bold text-sm border border-white/20 hover:border-[#E8C766]">Play again</button>
+          </div>
+        </section>
+      `);
+      wireResultButtons(null);
+    }
+
+    function renderChallengeResult() {
+      const myVector = state.vectors[0];
+      const theirVector = state.incomingVector!;
+      const myPersona = matchPersona(myVector);
+      const theirPersona = matchPersona(theirVector);
+      const matchPct = Math.round(cosineSimilarity(myVector, theirVector) * 100);
+      shell(`
+        <section class="flex-1 flex flex-col items-center gap-6 text-center">
+          <p class="uppercase tracking-[0.14em] text-[11px] text-[#E8C766] font-bold">You vs ${state.incomingName}</p>
+          <div id="result-card" class="w-full max-w-lg rounded-2xl p-6 bg-gradient-to-br from-[#2b2440] to-[#100f19] border border-[#E8C766]/50">
+            <h1 class="text-3xl font-serif font-bold mb-1">${matchPct}% match</h1>
+            <div class="grid grid-cols-2 gap-4 text-left mt-4">
+              <div>
+                <img src="${personaImg(PERSONAS.indexOf(myPersona))}" alt="" class="w-full h-24 object-cover rounded-lg mb-2"
+                  onerror="this.onerror=null;this.style.display='none';" />
+                <h3 class="font-bold text-sm mb-2">You — ${myPersona.name}</h3>
+                <div class="grid gap-2">${traitBars(myVector, "#E8C766")}</div>
+              </div>
+              <div>
+                <img src="${personaImg(PERSONAS.indexOf(theirPersona))}" alt="" class="w-full h-24 object-cover rounded-lg mb-2"
+                  onerror="this.onerror=null;this.style.display='none';" />
+                <h3 class="font-bold text-sm mb-2">${state.incomingName}'s persona</h3>
+                <div class="grid gap-2">${traitBars(theirVector, "#7C5CFF")}</div>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button id="download-btn" class="px-5 py-3 rounded-full font-bold text-sm bg-gradient-to-br from-[#E8C766] to-[#C9A227] text-[#1a1408]">Save as image</button>
+            <button id="again-btn" class="px-5 py-3 rounded-full font-bold text-sm border border-white/20 hover:border-[#E8C766]">Play again</button>
+          </div>
+        </section>
+      `);
+      wireResultButtons(null);
+    }
+
+    function wireResultButtons(shareLink: string | null) {
+      document.getElementById("again-btn")?.addEventListener("click", () => {
+        window.location.hash = "";
+        state.incomingVector = null;
+        state.incomingName = null;
+        state.screen = "mode";
+        render();
+      });
+      document.getElementById("download-btn")?.addEventListener("click", async () => {
+        const card = document.getElementById("result-card");
+        // @ts-ignore html2canvas loaded globally via CDN script tag
+        if (card && window.html2canvas) {
+          // @ts-ignore
+          const canvas = await window.html2canvas(card, { useCORS: true, backgroundColor: "#100f19" });
+          const link = document.createElement("a");
+          link.download = "soulmate-result.png";
+          link.href = canvas.toDataURL("image/png");
+          link.click();
+        }
+      });
+      if (shareLink) {
+        document.getElementById("share-btn")?.addEventListener("click", () => {
+          const p = document.getElementById("share-link");
+          if (p) {
+            p.textContent = shareLink;
+            p.classList.remove("hidden");
+          }
+          navigator.clipboard?.writeText(shareLink).catch(() => {});
+        });
+      }
+    }
+
+    // ---------- boot ----------
+    parseIncomingChallenge();
+    render();
+  </script>
+</body>
+</html>

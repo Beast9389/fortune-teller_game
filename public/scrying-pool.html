@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Scrying Pool — Arcane Arcade</title>
+<meta name="description" content="A physically simulated scrying pool: real wave physics, procedural sound, draggable relics, and a weighted vision oracle. Runs entirely in your browser." />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap');
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:#05050a; color:#F3ECE0; font-family:'Manrope',sans-serif; overflow-x:hidden; }
+  .font-display { font-family:'Cinzel',serif; }
+
+  .glow { position:fixed; border-radius:999px; filter:blur(110px); pointer-events:none; z-index:0; }
+  .glow-1 { top:-100px; left:-80px; width:380px; height:380px; background:#8B5CF6; opacity:.22; }
+  .glow-2 { bottom:-100px; right:-80px; width:380px; height:380px; background:#22D3EE; opacity:.16; }
+
+  #pool-canvas { display:block; width:100%; height:100%; touch-action:none; border-radius:50%; cursor:crosshair; }
+  .pool-frame { position:relative; width:min(78vw,420px); height:min(78vw,420px); border-radius:50%; box-shadow:0 0 0 1px rgba(139,92,246,.35), 0 0 60px -10px rgba(139,92,246,.5), inset 0 0 60px rgba(0,0,0,.6); overflow:hidden; }
+
+  .relic { position:absolute; width:40px; height:40px; display:flex; align-items:center; justify-content:center; cursor:grab; touch-action:none; filter:drop-shadow(0 0 8px currentColor); z-index:5; user-select:none; }
+  .relic:active { cursor:grabbing; }
+
+  .witch { position:fixed; right:18px; bottom:18px; width:64px; height:96px; pointer-events:none; z-index:20; animation:witch-float 4.2s ease-in-out infinite; opacity:.92; }
+  @keyframes witch-float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-10px); } }
+  .witch-glow { animation:witch-pulse 2.6s ease-in-out infinite; }
+  @keyframes witch-pulse { 0%,100% { opacity:.5; } 50% { opacity:1; } }
+  .witch-bubble { position:fixed; right:90px; bottom:52px; max-width:190px; background:rgba(20,19,31,.92); border:1px solid rgba(139,92,246,.4); border-radius:12px; padding:8px 12px; font-size:11.5px; color:#DCD8E8; z-index:20; transition:opacity .4s ease; }
+
+  .btn-gold { display:inline-flex; align-items:center; gap:8px; justify-content:center; padding:13px 26px; border-radius:99px; background:linear-gradient(135deg,#E8C766,#C9A227); color:#1a1408; font-weight:700; font-size:14.5px; box-shadow:0 10px 28px -8px rgba(201,162,39,.5); transition:transform .15s; border:none; cursor:pointer; }
+  .btn-gold:hover { transform:translateY(-2px); }
+  .btn-gold:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+  .btn-outline { display:inline-flex; align-items:center; gap:8px; justify-content:center; padding:11px 20px; border-radius:99px; border:1px solid rgba(255,255,255,.18); font-size:13.5px; font-weight:600; transition:.15s; background:transparent; color:#F3ECE0; cursor:pointer; }
+  .btn-outline:hover { border-color:#22D3EE; color:#22D3EE; }
+
+  .card { width:100%; max-width:420px; border-radius:20px; overflow:hidden; background:rgba(255,255,255,.04); backdrop-filter:blur(18px); border:1px solid rgba(139,92,246,.35); text-align:left; }
+  .fade-in { animation:fadeIn .5s ease both; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+</style>
+</head>
+<body>
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
+
+<div class="relative max-w-3xl mx-auto px-5 py-6 min-h-screen flex flex-col z-10">
+  <header class="flex items-center justify-between py-2 mb-4">
+    <a href="/" class="text-sm" style="color:#9490A8; text-decoration:none;">← Hub</a>
+    <div class="flex items-center gap-2 font-display font-bold" style="color:#8B5CF6; letter-spacing:.03em;">✦ The Scrying Pool</div>
+  </header>
+
+  <div id="app" class="flex-1 flex flex-col items-center justify-center gap-6 text-center"></div>
+</div>
+
+<!-- floating witch guide (shown during the ritual) -->
+<div id="witch-wrap" style="display:none;">
+  <p id="witch-bubble" class="witch-bubble">Still your hand. Let the water listen.</p>
+  <svg class="witch" viewBox="0 0 64 96" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="32" cy="88" rx="16" ry="4" fill="#8B5CF6" opacity="0.15" class="witch-glow" />
+    <path d="M32 8 L44 30 Q46 34 44 38 L20 38 Q18 34 20 30 Z" fill="#14131f" stroke="#8B5CF6" stroke-width="1.2" class="witch-glow" />
+    <path d="M14 40 Q32 34 50 40 L46 84 Q32 90 18 84 Z" fill="#181624" stroke="#8B5CF6" stroke-width="1.2" />
+    <circle cx="32" cy="20" r="3" fill="#E8C766" class="witch-glow" />
+  </svg>
+</div>
+
+<script>
+/* ============================================================
+   THE SCRYING POOL
+   - Real 2D wave-equation ripple physics (two-buffer height field)
+   - Procedural Web Audio (ambient drone, brown-noise hiss, splash
+     bursts) — zero audio files, all synthesized live
+   - 3 draggable relics bias a softmax-weighted vision oracle
+   - No external image service: the "vision" is rendered directly
+     into the water as a procedural glow, which fits a scrying
+     pool far better than a popped-up photo would have anyway
+   ============================================================ */
+
+// ---------- crypto-secure randomness ----------
+function secureRandomInt(maxExclusive) {
+  const arr = new Uint32Array(1);
+  const limit = 0xFFFFFFFF - (0xFFFFFFFF % maxExclusive);
+  let val;
+  do { crypto.getRandomValues(arr); val = arr[0]; } while (val >= limit);
+  return val % maxExclusive;
+}
+function secureShuffle(array) {
+  const a = [...array];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = secureRandomInt(i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function secureRandomFloat() { return secureRandomInt(1000000) / 1000000; }
+
+function escapeHTML(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ============================================================
+   WAVE PHYSICS
+   ============================================================ */
+const GRID = 200;
+let bufA = new Float32Array(GRID * GRID);
+let bufB = new Float32Array(GRID * GRID);
+const DAMPING = 0.985;
+let disturbance = 0; // decaying "how vigorously has the water been stirred" metric
+
+function stepWave() {
+  for (let y = 1; y < GRID - 1; y++) {
+    const row = y * GRID;
+    for (let x = 1; x < GRID - 1; x++) {
+      const i = row + x;
+      let v = (bufA[i - 1] + bufA[i + 1] + bufA[i - GRID] + bufA[i + GRID]) * 0.5 - bufB[i];
+      v *= DAMPING;
+      bufB[i] = v;
+    }
+  }
+  const tmp = bufA; bufA = bufB; bufB = tmp;
+  disturbance *= 0.992;
+}
+
+function injectRipple(gx, gy, strength) {
+  const r = 3;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const x = gx + dx, y = gy + dy;
+      if (x < 1 || x >= GRID - 1 || y < 1 || y >= GRID - 1) continue;
+      const d = Math.hypot(dx, dy);
+      if (d > r) continue;
+      const falloff = 1 - d / r;
+      bufA[y * GRID + x] += strength * falloff;
+    }
+  }
+  disturbance = Math.min(1, disturbance + Math.abs(strength) * 0.02);
+}
+
+/* ============================================================
+   RENDERING — refraction + specular over a procedural backdrop
+   ============================================================ */
+const canvas = document.createElement("canvas");
+canvas.id = "pool-canvas";
+canvas.width = GRID;
+canvas.height = GRID;
+const ctx = canvas.getContext("2d");
+const imgData = ctx.createImageData(GRID, GRID);
+const pixels = imgData.data;
+
+// backdrop: a slow, analytic swirl of deep indigo/violet — no image fetch needed
+function backdropColor(u, v, t) {
+  const swirl = Math.sin(u * 3 + t * 0.15) * Math.cos(v * 3 - t * 0.1);
+  const depth = 0.5 + 0.5 * Math.sin((u + v) * 2 + t * 0.05);
+  const r = 14 + 24 * depth + 10 * swirl;
+  const g = 10 + 14 * depth + 6 * swirl;
+  const b = 26 + 46 * depth + 14 * swirl;
+  return [Math.max(0, r), Math.max(0, g), Math.max(0, b)];
+}
+
+let frameTime = 0;
+function renderFrame() {
+  frameTime += 1;
+  for (let y = 1; y < GRID - 1; y++) {
+    const row = y * GRID;
+    for (let x = 1; x < GRID - 1; x++) {
+      const i = row + x;
+      const dx = bufA[i + 1] - bufA[i - 1];
+      const dy = bufA[i + GRID] - bufA[i - GRID];
+
+      const u = (x + dx * 18) / GRID;
+      const v = (y + dy * 18) / GRID;
+      const [r, g, b] = backdropColor(u, v, frameTime);
+
+      // specular highlight from a fixed light direction
+      const lx = 0.6, ly = 0.6;
+      const spec = Math.max(0, dx * lx + dy * ly);
+      const highlight = Math.pow(spec, 2) * 180;
+
+      const p = i * 4;
+      pixels[p] = Math.min(255, r + highlight);
+      pixels[p + 1] = Math.min(255, g + highlight);
+      pixels[p + 2] = Math.min(255, b + highlight * 1.1);
+      pixels[p + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function loop() {
+  stepWave();
+  renderFrame();
+  requestAnimationFrame(loop);
+}
+
+/* ============================================================
+   PROCEDURAL WEB AUDIO — synthesized, no files, deferred until interaction
+   ============================================================ */
+let audioCtx = null;
+function ensureAudio() {
+  if (audioCtx) return audioCtx;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  audioCtx = new Ctx();
+  startDrone();
+  startHiss();
+  return audioCtx;
+}
+function startDrone() {
+  const master = audioCtx.createGain();
+  master.gain.value = 0.05;
+  master.connect(audioCtx.destination);
+  const osc1 = audioCtx.createOscillator(); osc1.type = "sine"; osc1.frequency.value = 110;
+  const osc2 = audioCtx.createOscillator(); osc2.type = "sine"; osc2.frequency.value = 110 * 1.006;
+  const lfo = audioCtx.createOscillator(); lfo.frequency.value = 0.13;
+  const lfoGain = audioCtx.createGain(); lfoGain.gain.value = 0.025;
+  lfo.connect(lfoGain); lfoGain.connect(master.gain);
+  osc1.connect(master); osc2.connect(master);
+  osc1.start(); osc2.start(); lfo.start();
+}
+function startHiss() {
+  const bufferSize = 2 * audioCtx.sampleRate;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  let lastOut = 0;
+  for (let i = 0; i < bufferSize; i++) {
+    const white = Math.random() * 2 - 1;
+    data[i] = (lastOut + 0.02 * white) / 1.02;
+    lastOut = data[i];
+    data[i] *= 3.2;
+  }
+  const src = audioCtx.createBufferSource(); src.buffer = buffer; src.loop = true;
+  const lp = audioCtx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 650;
+  const gain = audioCtx.createGain(); gain.gain.value = 0.035;
+  src.connect(lp); lp.connect(gain); gain.connect(audioCtx.destination);
+  src.start();
+}
+function playSplash() {
+  if (!audioCtx) return;
+  const dur = 0.32;
+  const bufferSize = Math.floor(audioCtx.sampleRate * dur);
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  const src = audioCtx.createBufferSource(); src.buffer = buffer;
+  const bp = audioCtx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 700 + Math.random() * 700; bp.Q.value = 1.1;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.22, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+  src.connect(bp); bp.connect(gain); gain.connect(audioCtx.destination);
+  src.start(); src.stop(audioCtx.currentTime + dur + 0.05);
+}
+
+/* ============================================================
+   VISIONS — categories, softmax weighting, localStorage freshness
+   ============================================================ */
+const SEEN_KEY = "aa_scrying_seen_v1";
+const VISIONS = {
+  illumination: [
+    "A door you assumed was locked was never locked at all.",
+    "The answer you want is one honest conversation away.",
+    "Something you dismissed as small will matter enormously.",
+    "Clarity arrives the moment you stop performing certainty.",
+  ],
+  omen: [
+    "A pattern is about to repeat — this time, notice it sooner.",
+    "Something ending soon was already over; you're just catching up.",
+    "A warning disguised as good news deserves a second look.",
+    "What feels like bad timing is actually protection.",
+  ],
+  opportunity: [
+    "An offer arrives sideways, not through the door you're watching.",
+    "The risk that scares you most is the one worth taking.",
+    "Someone is about to open a door they don't know you're waiting behind.",
+    "A skill you've undervalued becomes the thing that opens everything.",
+  ],
+  reflection: [
+    "You already know. You've known for a while.",
+    "The version of you from a year ago would be proud, not worried.",
+    "What you're carrying isn't yours to carry alone.",
+    "Rest isn't the interruption — it's part of the plan.",
+  ],
+};
+const CATEGORY_COLOR = { illumination: "#E8C766", omen: "#8B5CF6", opportunity: "#22D3EE", reflection: "#5B8DEF" };
+const CATEGORY_LABEL = { illumination: "Illumination", omen: "Omen", opportunity: "Opportunity", reflection: "Reflection" };
+const CATEGORY_COMPAT = {
+  "illumination-illumination": 88, "omen-omen": 70, "opportunity-opportunity": 84, "reflection-reflection": 90,
+  "illumination-opportunity": 82, "illumination-omen": 55, "illumination-reflection": 78,
+  "opportunity-omen": 60, "opportunity-reflection": 72, "omen-reflection": 66,
+};
+function categoryCompat(a, b) {
+  return CATEGORY_COMPAT[`${a}-${b}`] ?? CATEGORY_COMPAT[`${b}-${a}`] ?? 50;
+}
+
+function getSeenIds() {
+  try { const raw = localStorage.getItem(SEEN_KEY); return raw ? JSON.parse(raw) : []; }
+  catch { return []; }
+}
+function markSeen(id) {
+  try {
+    const existing = new Set(getSeenIds());
+    existing.add(id);
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...existing]));
+  } catch {}
+}
+function softmax(logits) {
+  const max = Math.max(...logits);
+  const exps = logits.map((l) => Math.exp(l - max));
+  const sum = exps.reduce((a, b) => a + b, 0);
+  return exps.map((e) => e / sum);
+}
+function weightedPick(items, weights) {
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = secureRandomFloat() * total;
+  for (let i = 0; i < items.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return items[i];
+  }
+  return items[items.length - 1];
+}
+
+function generateVision(relicWeights) {
+  const categories = ["illumination", "omen", "opportunity", "reflection"];
+  const logits = [
+    relicWeights.candle * 2.2,
+    relicWeights.feather * 2.2,
+    relicWeights.key * 2.2,
+    0.7 + disturbance * 1.5,
+  ];
+  const probs = softmax(logits);
+  const category = weightedPick(categories, probs);
+
+  const seen = new Set(getSeenIds());
+  let pool = VISIONS[category].map((text, i) => ({ id: `${category}:${i}`, text }));
+  let unseen = pool.filter((v) => !seen.has(v.id));
+  if (unseen.length === 0) {
+    // exhausted this category — widen to the whole seen-aware pool, then fall back to everything
+    const allPool = Object.entries(VISIONS).flatMap(([cat, arr]) => arr.map((text, i) => ({ id: `${cat}:${i}`, text, cat })));
+    unseen = allPool.filter((v) => !seen.has(v.id));
+    if (unseen.length === 0) { try { localStorage.removeItem(SEEN_KEY); } catch {} unseen = allPool; }
+  }
+  const chosen = secureShuffle(unseen)[0];
+  markSeen(chosen.id);
+  return { category, text: chosen.text };
+}
+
+/* ============================================================
+   DESTINY LINK — try/catch + schema validation + escaping
+   ============================================================ */
+function parseDestinyHash() {
+  try {
+    const hash = window.location.hash.replace(/^#/, "");
+    const params = new URLSearchParams(hash);
+    const raw = params.get("ritual");
+    if (!raw) return null;
+    const decoded = JSON.parse(atob(raw));
+    if (typeof decoded.c !== "string" || !VISIONS[decoded.c]) return null;
+    if (typeof decoded.n !== "string") return null;
+    return { category: decoded.c, nickname: decoded.n.slice(0, 40) };
+  } catch (err) {
+    console.warn("Corrupt or tampered ritual link, ignoring:", err);
+    return null;
+  }
+}
+function encodeDestinyLink(category, nickname) {
+  const payload = btoa(JSON.stringify({ c: category, n: nickname || "A friend" }));
+  return `${window.location.origin}${window.location.pathname}#ritual=${payload}`;
+}
+
+/* ============================================================
+   APP STATE + SCREENS
+   ============================================================ */
+const state = { mode: "solo", player: 1, results: [null, null], incoming: null, nickname: "" };
+const app = document.getElementById("app");
+const witchWrap = document.getElementById("witch-wrap");
+const witchBubble = document.getElementById("witch-bubble");
+
+function setWitch(text, visible) {
+  witchWrap.style.display = visible ? "block" : "none";
+  if (text) witchBubble.textContent = text;
+}
+
+function renderIntro() {
+  setWitch(null, false);
+  const found = parseDestinyHash();
+  if (found) {
+    state.incoming = found;
+    app.innerHTML = `
+      <div class="fade-in">
+        <p class="uppercase tracking-widest text-xs font-bold mb-3" style="color:#8B5CF6; letter-spacing:.14em;">${escapeHTML(found.nickname)} left a vision in the water</p>
+        <h1 class="font-display font-bold text-3xl mb-4" style="max-width:480px;">Gaze into the same pool and see how your fates align.</h1>
+        <button id="btn-begin" class="btn-gold">Begin the ritual</button>
+      </div>`;
+    document.getElementById("btn-begin").onclick = () => { ensureAudio(); startRitual("solo"); };
+    return;
+  }
+  app.innerHTML = `
+    <div class="fade-in">
+      <p class="uppercase tracking-widest text-xs font-bold mb-3" style="color:#8B5CF6; letter-spacing:.14em;">Real wave physics · synthesized sound · nothing stored but a memory of what you've seen</p>
+      <h1 class="font-display font-bold text-3xl mb-4" style="max-width:480px;">Still the water. Ask it something.</h1>
+      <p class="text-sm mb-6" style="color:#9490A8; max-width:420px;">Drag the three relics, disturb the surface, then let it settle. What rises depends on where you placed them.</p>
+      <div class="grid gap-3" style="width:100%; max-width:340px;">
+        <button id="btn-solo" class="btn-outline" style="justify-content:flex-start; padding:16px 20px;">Solo Ritual</button>
+        <button id="btn-pass" class="btn-outline" style="justify-content:flex-start; padding:16px 20px;">Pass &amp; Play (two people)</button>
+      </div>
+    </div>`;
+  document.getElementById("btn-solo").onclick = () => { ensureAudio(); startRitual("solo"); };
+  document.getElementById("btn-pass").onclick = () => { ensureAudio(); state.player = 1; state.mode = "pass"; startRitual("pass"); };
+}
+
+let relicWeights = { candle: 0.3, feather: 0.3, key: 0.3 };
+let poolContainer, dragState = null;
+
+function startRitual(mode) {
+  state.mode = mode;
+  bufA.fill(0); bufB.fill(0); disturbance = 0;
+  setWitch("Still your hand. Let the water listen.", true);
+
+  app.innerHTML = `
+    <div class="fade-in flex flex-col items-center gap-5">
+      <p class="text-xs" style="color:#9490A8;">${mode === "pass" ? `Player ${state.player} — ` : ""}Drag the relics. Stir the water. Then gaze.</p>
+      <div class="pool-frame" id="pool-frame"></div>
+      <button id="btn-reveal" class="btn-gold" disabled>Gaze Into The Pool</button>
+    </div>`;
+
+  poolContainer = document.getElementById("pool-frame");
+  poolContainer.appendChild(canvas);
+  addRelics(poolContainer);
+  wirePointerEvents();
+
+  const revealBtn = document.getElementById("btn-reveal");
+  const checkReady = setInterval(() => {
+    if (disturbance > 0.08) { revealBtn.disabled = false; setWitch("Yes... it stirs. Now — gaze.", true); clearInterval(checkReady); }
+  }, 400);
+
+  revealBtn.onclick = () => {
+    clearInterval(checkReady);
+    revealVision();
+  };
+}
+
+function addRelics(container) {
+  const relics = [
+    { key: "candle", color: "#E8C766", svg: `<svg viewBox="0 0 40 40"><rect x="17" y="18" width="6" height="16" rx="2" fill="#E8C766"/><path d="M20 6c-3 5-5 7-5 10a5 5 0 0010 0c0-3-2-5-5-10z" fill="#FFB84D"/></svg>`, top: "8%", left: "18%" },
+    { key: "feather", color: "#8B5CF6", svg: `<svg viewBox="0 0 40 40"><path d="M20 4c8 6 8 26 0 34 -2-10 -6-14-10-16 4-2 6-6 6-10 -4 0-7-2-8-5 5 0 9 -1 12-3z" fill="#8B5CF6"/></svg>`, top: "12%", left: "68%" },
+    { key: "key", color: "#22D3EE", svg: `<svg viewBox="0 0 40 40"><circle cx="14" cy="14" r="7" fill="none" stroke="#22D3EE" stroke-width="3"/><rect x="18" y="18" width="16" height="4" fill="#22D3EE"/><rect x="28" y="22" width="4" height="6" fill="#22D3EE"/></svg>`, top: "72%", left: "42%" },
+  ];
+  relics.forEach((r) => {
+    const el = document.createElement("div");
+    el.className = "relic";
+    el.style.color = r.color;
+    el.style.top = r.top;
+    el.style.left = r.left;
+    el.dataset.key = r.key;
+    el.innerHTML = r.svg;
+    container.appendChild(el);
+    wireRelicDrag(el, container);
+  });
+  updateRelicWeights(container);
+}
+
+function wireRelicDrag(el, container) {
+  el.addEventListener("pointerdown", (e) => {
+    el.setPointerCapture(e.pointerId);
+    dragState = { el, offsetX: e.clientX - el.offsetLeft, offsetY: e.clientY - el.offsetTop };
+  });
+  el.addEventListener("pointermove", (e) => {
+    if (!dragState || dragState.el !== el) return;
+    const rect = container.getBoundingClientRect();
+    let x = e.clientX - rect.left - 20;
+    let y = e.clientY - rect.top - 20;
+    x = Math.max(-10, Math.min(rect.width - 30, x));
+    y = Math.max(-10, Math.min(rect.height - 30, y));
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    updateRelicWeights(container);
+  });
+  el.addEventListener("pointerup", (e) => { dragState = null; try { el.releasePointerCapture(e.pointerId); } catch {} });
+}
+
+function updateRelicWeights(container) {
+  const rect = container.getBoundingClientRect();
+  const centerX = rect.width / 2, centerY = rect.height / 2;
+  const maxDist = Math.hypot(centerX, centerY);
+  container.querySelectorAll(".relic").forEach((el) => {
+    const cx = el.offsetLeft + 20, cy = el.offsetTop + 20;
+    const dist = Math.hypot(cx - centerX, cy - centerY);
+    relicWeights[el.dataset.key] = Math.max(0.05, 1 - Math.min(1, dist / maxDist));
+  });
+}
+
+function wirePointerEvents() {
+  let down = false;
+  canvas.onpointerdown = (e) => {
+    down = true;
+    canvas.setPointerCapture(e.pointerId);
+    ensureAudio();
+    playSplash();
+    injectFromEvent(e);
+  };
+  canvas.onpointermove = (e) => { if (down) injectFromEvent(e); };
+  canvas.onpointerup = (e) => { down = false; try { canvas.releasePointerCapture(e.pointerId); } catch {} };
+}
+function injectFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const gx = Math.floor(((e.clientX - rect.left) / rect.width) * GRID);
+  const gy = Math.floor(((e.clientY - rect.top) / rect.height) * GRID);
+  injectRipple(gx, gy, 6);
+}
+
+function revealVision() {
+  playSplash();
+  setWitch("The pool has spoken.", true);
+  const result = generateVision(relicWeights);
+  const idx = state.player - 1;
+  state.results[idx] = result;
+
+  if (state.mode === "pass" && state.player === 1) {
+    renderLockScreen();
+  } else if (state.mode === "pass" && state.player === 2) {
+    renderDuoResult();
+  } else if (state.incoming) {
+    renderDestinyResult();
+  } else {
+    renderSoloResult(result);
+  }
+}
+
+function renderLockScreen() {
+  app.innerHTML = `
+    <div class="fade-in flex flex-col items-center gap-4">
+      <p class="text-xs" style="color:#8B5CF6;">Player 1 complete</p>
+      <h1 class="font-display font-bold text-2xl">Pass the device to Player 2.</h1>
+      <p class="text-sm" style="color:#9490A8;">Player 1's vision stays hidden until both have gazed.</p>
+      <button id="btn-unlock" class="btn-gold">Unlock for Player 2</button>
+    </div>`;
+  document.getElementById("btn-unlock").onclick = () => { state.player = 2; startRitual("pass"); };
+}
+
+function visionCardHTML(result, extra) {
+  const color = CATEGORY_COLOR[result.category];
+  return `
+    <div id="result-card" class="card">
+      <div style="padding:26px 22px; text-align:center; background:radial-gradient(circle at 50% 0%, ${color}22, transparent 70%);">
+        <p class="text-xs font-bold uppercase" style="color:${color}; letter-spacing:.1em;">${CATEGORY_LABEL[result.category]}</p>
+        <p class="font-display font-bold text-lg mt-3" style="line-height:1.5;">"${escapeHTML(result.text)}"</p>
+      </div>
+      ${extra || ""}
+    </div>`;
+}
+
+function renderSoloResult(result) {
+  setWitch(null, false);
+  app.innerHTML = `
+    <div class="fade-in flex flex-col items-center gap-5">
+      <p class="text-xs" style="color:#9490A8;">Your vision</p>
+      ${visionCardHTML(result, `
+        <div style="padding:16px 22px 20px;">
+          <label style="display:block; font-size:12px; color:#9490A8; margin-bottom:6px;">Nickname for your Destiny Link (optional)</label>
+          <input id="nickname-input" maxlength="40" style="width:100%; padding:10px 13px; border-radius:10px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.12); color:#F3ECE0; font-size:13.5px;" placeholder="e.g. Sam" />
+        </div>
+      `)}
+      <div class="flex gap-3 flex-wrap justify-center">
+        <button id="btn-download" class="btn-gold">Save as image</button>
+        <button id="btn-share" class="btn-outline">Destiny Link</button>
+        <button id="btn-again" class="btn-outline">Ask again</button>
+      </div>
+      <p id="link-out" class="text-xs" style="color:#9490A8; word-break:break-all; max-width:400px; display:none;"></p>
+      <p class="text-xs" style="color:#6b6880;">For entertainment only.</p>
+    </div>`;
+  document.getElementById("btn-download").onclick = downloadCard;
+  document.getElementById("btn-share").onclick = () => {
+    const nickname = document.getElementById("nickname-input").value;
+    const link = encodeDestinyLink(result.category, nickname);
+    navigator.clipboard?.writeText(link).catch(() => {});
+    const out = document.getElementById("link-out");
+    out.textContent = link; out.style.display = "block";
+  };
+  document.getElementById("btn-again").onclick = () => { window.history.replaceState({}, "", window.location.pathname); state.incoming = null; renderIntro(); };
+}
+
+function renderDuoResult() {
+  setWitch(null, false);
+  const [r1, r2] = state.results;
+  const pct = categoryCompat(r1.category, r2.category);
+  app.innerHTML = `
+    <div class="fade-in flex flex-col items-center gap-5">
+      <p class="text-xs" style="color:#9490A8;">Two visions, one pool</p>
+      <div id="result-card" class="card">
+        <div style="padding:22px; text-align:center;">
+          <h1 class="font-display font-bold text-4xl mb-3">${pct}%</h1>
+          <p class="text-xs" style="color:#9490A8; margin-bottom:16px;">Elemental alignment between your two readings</p>
+          <div class="grid grid-cols-2 gap-4 text-left">
+            <div><p class="text-xs font-bold" style="color:${CATEGORY_COLOR[r1.category]};">Player 1 — ${CATEGORY_LABEL[r1.category]}</p><p class="text-xs mt-1" style="color:#DCD8E8;">"${escapeHTML(r1.text)}"</p></div>
+            <div><p class="text-xs font-bold" style="color:${CATEGORY_COLOR[r2.category]};">Player 2 — ${CATEGORY_LABEL[r2.category]}</p><p class="text-xs mt-1" style="color:#DCD8E8;">"${escapeHTML(r2.text)}"</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button id="btn-download" class="btn-gold">Save as image</button>
+        <button id="btn-again" class="btn-outline">Start over</button>
+      </div>
+      <p class="text-xs" style="color:#6b6880;">For entertainment only.</p>
+    </div>`;
+  document.getElementById("btn-download").onclick = downloadCard;
+  document.getElementById("btn-again").onclick = () => renderIntro();
+}
+
+function renderDestinyResult() {
+  setWitch(null, false);
+  const mine = state.results[0];
+  const theirs = { category: state.incoming.category, text: "(their private vision)" };
+  const pct = categoryCompat(mine.category, theirs.category);
+  app.innerHTML = `
+    <div class="fade-in flex flex-col items-center gap-5">
+      <p class="text-xs" style="color:#9490A8;">You vs ${escapeHTML(state.incoming.nickname)}</p>
+      <div id="result-card" class="card">
+        <div style="padding:22px; text-align:center;">
+          <h1 class="font-display font-bold text-4xl mb-3">${pct}%</h1>
+          <p class="text-xs" style="color:#9490A8; margin-bottom:16px;">Elemental alignment between your readings</p>
+          <div class="grid grid-cols-2 gap-4 text-left">
+            <div><p class="text-xs font-bold" style="color:${CATEGORY_COLOR[mine.category]};">You — ${CATEGORY_LABEL[mine.category]}</p><p class="text-xs mt-1" style="color:#DCD8E8;">"${escapeHTML(mine.text)}"</p></div>
+            <div><p class="text-xs font-bold" style="color:${CATEGORY_COLOR[theirs.category]};">${escapeHTML(state.incoming.nickname)} — ${CATEGORY_LABEL[theirs.category]}</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button id="btn-download" class="btn-gold">Save as image</button>
+        <button id="btn-again" class="btn-outline">Start over</button>
+      </div>
+      <p class="text-xs" style="color:#6b6880;">For entertainment only.</p>
+    </div>`;
+  document.getElementById("btn-download").onclick = downloadCard;
+  document.getElementById("btn-again").onclick = () => { window.history.replaceState({}, "", window.location.pathname); state.incoming = null; renderIntro(); };
+}
+
+function downloadCard() {
+  const out = document.createElement("canvas");
+  out.width = 640; out.height = 640;
+  const octx = out.getContext("2d");
+  octx.fillStyle = "#0B0B14"; octx.fillRect(0, 0, 640, 640);
+  octx.drawImage(canvas, 120, 40, 400, 400);
+  octx.fillStyle = "#E8C766";
+  octx.font = "600 22px Georgia, serif";
+  octx.textAlign = "center";
+  const result = state.results[state.player - 1] || state.results[0];
+  if (result) {
+    octx.fillText(CATEGORY_LABEL[result.category], 320, 480);
+    octx.fillStyle = "#F3ECE0";
+    octx.font = "16px Georgia, serif";
+    wrapText(octx, `"${result.text}"`, 320, 520, 480, 24);
+  }
+  const link = document.createElement("a");
+  link.download = "scrying-vision.png";
+  link.href = out.toDataURL("image/png");
+  link.click();
+}
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(" ");
+  let line = "";
+  let cy = y;
+  for (const word of words) {
+    const test = line + word + " ";
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, cy);
+      line = word + " ";
+      cy += lineHeight;
+    } else {
+      line = test;
+    }
+  }
+  ctx.fillText(line, x, cy);
+}
+
+// ---------- boot ----------
+requestAnimationFrame(loop);
+renderIntro();
+</script>
+</body>
+</html>

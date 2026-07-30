@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 250" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0d17"/>
+      <stop offset="100%" stop-color="#16192b"/>
+    </linearGradient>
+
+    <!-- Mystical Gold/Violet Stroke Gradient -->
+    <linearGradient id="mysticGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f43f5e"/>
+      <stop offset="50%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+
+    <!-- Glowing Radial Aura -->
+    <radialGradient id="orbAura" cx="50%" cy="45%" r="45%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#0b0d17" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="250" rx="16" fill="url(#bgGrad)" stroke="#a855f7" stroke-opacity="0.2" stroke-width="1.5"/>
+  <circle cx="200" cy="110" r="95" fill="url(#orbAura)"/>
+
+  <!-- Sacred Geometry Outer Ring -->
+  <g stroke="url(#mysticGlow)" stroke-width="1.2" fill="none" opacity="0.85">
+    <circle cx="200" cy="110" r="62" stroke-dasharray="6 3"/>
+    <circle cx="200" cy="110" r="46"/>
+    
+    <!-- Central Cross & Diamond -->
+    <line x1="200" y1="40" x2="200" y2="180" opacity="0.25"/>
+    <line x1="130" y1="110" x2="270" y2="110" opacity="0.25"/>
+    <polygon points="200,64 246,110 200,156 154,110" stroke-opacity="0.4"/>
+
+    <!-- Crescent Moons -->
+    <path d="M152 110 a 14 14 0 1 0 0 -28 a 18 18 0 1 1 0 28 Z" fill="url(#mysticGlow)"/>
+    <path d="M248 110 a 14 14 0 1 1 0 -28 a 18 18 0 1 0 0 28 Z" fill="url(#mysticGlow)"/>
+  </g>
+
+  <!-- Central Mystical Eye Symbol -->
+  <g stroke="#f0abfc" fill="none" stroke-width="1.5">
+    <path d="M175 110 Q 200 88 225 110 Q 200 132 175 110 Z" fill="#16192b" fill-opacity="0.6"/>
+    <circle cx="200" cy="110" r="7" fill="#f0abfc"/>
+  </g>
+
+  <!-- Floating Sparkles -->
+  <g fill="#e9d5ff" opacity="0.75">
+    <polygon points="105,60 107,65 112,67 107,69 105,74 103,69 98,67 103,65"/>
+    <polygon points="295,55 296,59 300,60 296,61 295,65 294,61 290,60 294,59"/>
+    <circle cx="90" cy="160" r="1.5"/>
+    <circle cx="310" cy="150" r="1.5"/>
+  </g>
+
+  <!-- Text Subtitle -->
+  <text x="200" y="215" fill="#c084fc" font-family="monospace, sans-serif" font-size="10" letter-spacing="2.5" text-anchor="middle" opacity="0.9">
+    THE VISION IS VEILED • TRY AGAIN
+  </text>
+</svg>

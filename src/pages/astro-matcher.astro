@@ -1,0 +1,19 @@
+---
+import '../styles/global.css';
+import AstroMatcher from '../components/AstroMatcher.jsx';
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Elemental Matcher — Arcane Arcade</title>
+		<meta name="description" content="Zodiac trigon compatibility combined with a real personality vector. Solo, Pass & Play, or Destiny Link." />
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+	</head>
+	<body>
+		<AstroMatcher client:load />
+	</body>
+</html>
