@@ -32,11 +32,11 @@ function secureUpright() {
 /* ---------- data: game hub ---------- */
 const GAMES = [
   { id: "tarot", name: "Digital Tarot & Fortune Draws", tagline: "Shuffle the arcana, draw your fate", icon: Sparkles, accent: "#7C5CFF", live: true },
-  { id: "soulmate", name: "Soulmate Quiz", tagline: "10 questions, one honest match", icon: Heart, accent: "#FF5C8A", live: true, path: "/soulmate-quiz" },
-  { id: "fortune", name: "AI Fortune Teller", tagline: "AI-written readings, offline-safe", icon: Moon, accent: "#B45CFF", live: true, path: "/fortune-teller" },
-  { id: "palm", name: "Palm Reader", tagline: "Scan your palm, on your device only", icon: Hand, accent: "#22D3EE", live: true, path: "/palm-reader" },
-  { id: "elemental", name: "Elemental Matcher", tagline: "Zodiac element × personality compatibility", icon: Flame, accent: "#8B5CF6", live: true, path: "/astro-matcher" },
-  { id: "scrying", name: "The Scrying Pool", tagline: "Real water physics, a real oracle", icon: Waves, accent: "#5B8DEF", live: true, path: "/scrying-pool.html" },
+  { id: "soulmate", name: "Soulmate Quiz", tagline: "10 questions, one honest match", icon: Heart, accent: "#FF5C8A", live: true, path: `${import.meta.env.BASE_URL}soulmate-quiz` },
+  { id: "fortune", name: "AI Fortune Teller", tagline: "AI-written readings, offline-safe", icon: Moon, accent: "#B45CFF", live: true, path: `${import.meta.env.BASE_URL}fortune-teller` },
+  { id: "palm", name: "Palm Reader", tagline: "Scan your palm, on your device only", icon: Hand, accent: "#22D3EE", live: true, path: `${import.meta.env.BASE_URL}palm-reader` },
+  { id: "elemental", name: "Elemental Matcher", tagline: "Zodiac element × personality compatibility", icon: Flame, accent: "#8B5CF6", live: true, path: `${import.meta.env.BASE_URL}astro-matcher` },
+  { id: "scrying", name: "The Scrying Pool", tagline: "Real water physics, a real oracle", icon: Waves, accent: "#5B8DEF", live: true, path: `${import.meta.env.BASE_URL}scrying-pool.html` },
   { id: "mood", name: "Mood Ring Oracle", tagline: "One tap, one vibe check", icon: Droplets, accent: "#26C6DA", live: false },
   { id: "study", name: "Study Deck Shuffler", tagline: "Randomised flashcard drills", icon: BookOpen, accent: "#66BB6A", live: false },
   { id: "wheel", name: "Decision Wheel", tagline: "Stop overthinking, spin instead", icon: CircleDot, accent: "#FFA726", live: false },
@@ -277,11 +277,11 @@ function Footer() {
   return (
     <footer className="site-footer">
       <div className="footer-links">
-        <a href="/about">About Us</a>
-        <a href="/paper-fortune-teller">How to Make a Paper Fortune Teller</a>
-        <a href="/privacy">Privacy Policy</a>
-        <a href="/terms">Terms &amp; Conditions</a>
-        <a href="/contact">Contact Us</a>
+        <a href={`${import.meta.env.BASE_URL}about`}>About Us</a>
+        <a href={`${import.meta.env.BASE_URL}paper-fortune-teller`}>How to Make a Paper Fortune Teller</a>
+        <a href={`${import.meta.env.BASE_URL}privacy`}>Privacy Policy</a>
+        <a href={`${import.meta.env.BASE_URL}terms`}>Terms &amp; Conditions</a>
+        <a href={`${import.meta.env.BASE_URL}contact`}>Contact Us</a>
       </div>
       <p className="footer-copy">My Fortune is built for entertainment purposes only. &copy; {new Date().getFullYear()} My Fortune.</p>
     </footer>
