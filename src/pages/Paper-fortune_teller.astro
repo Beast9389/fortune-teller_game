@@ -1,0 +1,106 @@
+---
+import LegalLayout from '../layouts/LegalLayout.astro';
+import FAQ from '../components/FAQ.astro';
+
+const faqItems = [
+  {
+    q: "How do you make a paper fortune teller?",
+    a: "Start with a square piece of paper. Fold it in half diagonally both ways to make an X crease, then unfold. Fold each corner into the center to make a smaller square. Flip it over and fold each corner into the center again. Fold it in half to find the pockets, then slide your fingers under all four flaps to open and close it like a mouth.",
+  },
+  {
+    q: "How do you make a Chinese fortune teller out of paper?",
+    a: "It's the same fold as a standard paper fortune teller (also called a cootie catcher) — the version popularised in East Asian schoolyards uses the identical square-paper fold, just decorated with different colours, numbers, or fortunes.",
+  },
+  {
+    q: "How do you play the paper fortune teller game?",
+    a: "One player picks a colour written on the outside; the caller opens and closes the fortune teller once per letter while spelling that colour. The player then picks a number shown inside, and the caller opens and closes it that many times. Finally the player picks one more number, and the caller lifts that flap to reveal the fortune or message underneath.",
+  },
+  {
+    q: "What do you write in a fortune teller paper game?",
+    a: "Write four colours on the outside flaps, numbers 1–8 on the inside triangles, and a short fortune, joke, dare, or fun fact under each numbered flap — things like 'You will have great luck this week' or 'Do 5 jumping jacks.'",
+  },
+  {
+    q: "How do you color a fortune teller?",
+    a: "Colour each of the four outer flaps a different solid colour before folding, so each pocket is easy to identify by touch and sight once it's folded and being played with.",
+  },
+];
+---
+
+<LegalLayout
+  title="How to Make a Paper Fortune Teller (Step-by-Step Guide)"
+  description="Learn how to make a paper fortune teller (cootie catcher), including a Chinese-style version, how to play it, what to write inside, and free printable-style ideas."
+  keywords={[
+    "paper fortune teller",
+    "how to make a fortune teller",
+    "how to make a paper fortune teller",
+    "how to make a chinese fortune teller out of paper",
+    "how to make fortune teller game worksheet",
+    "how to play fortune teller game",
+    "what to write in fortune teller paper game",
+    "how to color a fortune teller",
+    "how to use a fortune teller",
+  ]}
+>
+  <h1>How to Make a Paper Fortune Teller</h1>
+  <p class="updated">A classic playground game, explained simply</p>
+
+  <p>
+    The paper fortune teller — sometimes called a cootie catcher, salt cellar, or chatterbox
+    — is a simple folded-paper game that's been popular in classrooms and playgrounds for
+    generations. Here's exactly how to make one, decorate it, and play it.
+  </p>
+
+  <h2>What you need</h2>
+  <ul>
+    <li>One square piece of paper (any size, printer paper trimmed to a square works fine)</li>
+    <li>A pen, pencil, or markers</li>
+  </ul>
+
+  <h2>How to make a paper fortune teller, step by step</h2>
+  <ul>
+    <li><strong>Step 1:</strong> Fold the square in half diagonally, corner to corner, then unfold. Repeat with the other diagonal, so you have an X-shaped crease.</li>
+    <li><strong>Step 2:</strong> Fold all four corners into the center point, so you get a smaller square.</li>
+    <li><strong>Step 3:</strong> Flip the paper over. Fold all four corners into the center again.</li>
+    <li><strong>Step 4:</strong> Fold the whole square in half, then unfold, then fold in half the other way — this creates the pocket lines.</li>
+    <li><strong>Step 5:</strong> Slide your thumbs and index fingers under the four flaps on the bottom side and gently push them together, so the fortune teller can open and close like a mouth on both axes.</li>
+  </ul>
+
+  <h2>Making a Chinese-style fortune teller</h2>
+  <p>
+    The fold is identical to the standard version above — the "Chinese fortune teller" and
+    "Chinese fortune telling paper game" names simply refer to the same origami fold as it's
+    traditionally taught and played in parts of East Asia, usually decorated with numbers,
+    colours, and short fortunes exactly as described below.
+  </p>
+
+  <h2>What to write inside</h2>
+  <ul>
+    <li><strong>Outside flaps (4):</strong> Write one colour on each — e.g. Red, Blue, Green, Yellow.</li>
+    <li><strong>Inside triangles (8):</strong> Number them 1 through 8.</li>
+    <li><strong>Under each numbered flap:</strong> Write a short fortune, joke, dare, or fun fact — for example "You'll get great news this week" or "Sing your favourite song."</li>
+  </ul>
+
+  <h2>How to play</h2>
+  <ul>
+    <li>Ask a friend to pick one of the four colours shown on the outside.</li>
+    <li>Open and close the fortune teller once for each letter as you spell that colour out loud.</li>
+    <li>Ask them to pick one of the numbers now showing inside, and repeat the open-and-close motion that many times.</li>
+    <li>Ask them to pick one final number, then lift that flap and read their fortune aloud.</li>
+  </ul>
+
+  <h2>Tips for coloring and decorating</h2>
+  <p>
+    Give each of the four outer flaps a distinct solid colour so they're easy to tell apart
+    once folded. Some people like to draw small symbols or doodles matching each colour's
+    theme (e.g. a sun for yellow, a wave for blue) to make picking more fun for younger
+    players.
+  </p>
+
+  <p style="font-size:12px; color:#6b6880; margin-top:30px;">
+    This is a classic paper craft game intended for fun — like the rest of My Fortune, it's
+    entertainment, not real fortune telling. If you enjoyed this, try our
+    <a href={`${import.meta.env.BASE_URL}fortune-teller`}>AI Fortune Teller</a> or <a href={import.meta.env.BASE_URL}>other free games</a>.
+  </p>
+
+  <FAQ items={faqItems} />
+</LegalLayout>

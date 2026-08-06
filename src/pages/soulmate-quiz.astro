@@ -2,14 +2,18 @@
 import '../styles/global.css';
 import Analytics from '../components/Analytics.astro';
 import EntertainmentDisclaimer from '../components/EntertainmentDisclaimer.astro';
+import SEO from '../components/SEO.astro';
 ---
 
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Soulmate Quiz — My Fortune</title>
-  <meta name="description" content="A fair, cryptographically-randomised 10 question soulmate quiz. Solo, pass-and-play, or challenge a friend." />
+  <SEO
+    title="Soulmate Quiz"
+    description="A fair, cryptographically-randomised 10 question soulmate quiz. Solo, pass-and-play, or challenge a friend."
+    keywords={["fortune teller game", "online fortune teller"]}
+  />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
 		<Analytics />
 	</head>
@@ -376,7 +380,7 @@ import EntertainmentDisclaimer from '../components/EntertainmentDisclaimer.astro
     function shell(inner: string) {
       app.innerHTML = `
         <header class="flex items-center justify-between py-2 mb-8">
-          <a href="/" class="flex items-center gap-2 text-[#9490A8] text-sm hover:text-[#E8C766] transition">
+          <a href={import.meta.env.BASE_URL} class="flex items-center gap-2 text-[#9490A8] text-sm hover:text-[#E8C766] transition">
             ← Hub
           </a>
           <div class="flex items-center gap-2 font-serif font-bold text-[#E8C766] tracking-wide">✦ Soulmate Quiz</div>

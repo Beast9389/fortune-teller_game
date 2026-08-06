@@ -2,14 +2,44 @@
 import '../styles/global.css';
 import Analytics from '../components/Analytics.astro';
 import EntertainmentDisclaimer from '../components/EntertainmentDisclaimer.astro';
+import SEO from '../components/SEO.astro';
+import FAQ from '../components/FAQ.astro';
+
+const faqItems = [
+  {
+    q: "What is fortune teller AI?",
+    a: "Our AI Fortune Teller reads your answers to a short set of questions and generates a personalised, tarot-style reading using an AI text model, styled with vintage woodcut-style artwork. If the AI is unavailable, a fair offline fallback generator takes over automatically — for entertainment only.",
+  },
+  {
+    q: "How do I play this fortune teller game?",
+    a: "Choose Solo mode to answer a few quick questions and reveal your reading, Pass & Play to share one device with a friend, or generate a Destiny Link to challenge someone remotely. No sign-up needed.",
+  },
+  {
+    q: "Can I ask a yes or no question, like an 8 ball or gypsy fortune teller?",
+    a: "This game gives a full personality-style reading rather than a single yes/no answer, similar in spirit to a magic 8 ball or classic gypsy fortune teller, but built around your actual answers instead of a single random flip.",
+  },
+  {
+    q: "Is this fortune teller free and online?",
+    a: "Yes, it's completely free to use online, works on both desktop and mobile, and requires no account or download.",
+  },
+];
 ---
 
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI Fortune Teller — My Fortune</title>
-  <meta name="description" content="An AI-assisted fortune teller with a genuinely offline fallback, vintage woodcut-style illustrations, and pass-and-play or link-based multiplayer." />
+  <SEO
+    title="AI Fortune Teller"
+    description="An AI-assisted fortune teller with a genuinely offline fallback, vintage woodcut-style illustrations, and pass-and-play or link-based multiplayer."
+    keywords={[
+      "fortune teller ai",
+      "ai fortune teller online free",
+      "ask the gypsy fortune teller yes or no",
+      "8 ball fortune teller",
+      "fortune teller online free by date of birth",
+    ]}
+  />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
 		<Analytics />
 	</head>
@@ -23,6 +53,7 @@ import EntertainmentDisclaimer from '../components/EntertainmentDisclaimer.astro
   <div id="app" class="relative max-w-3xl mx-auto px-5 py-6 min-h-screen flex flex-col"></div>
   <div id="modal-root"></div>
   <EntertainmentDisclaimer />
+  <FAQ items={faqItems} />
 
   <script>
     /* ============================================================
@@ -439,7 +470,7 @@ import EntertainmentDisclaimer from '../components/EntertainmentDisclaimer.astro
     function shell(inner: string) {
       app.innerHTML = `
         <header class="flex items-center justify-between py-2 mb-8">
-          <a href="/" class="flex items-center gap-2 text-[#9490A8] text-sm hover:text-[#E8C766] transition">← Hub</a>
+          <a href={import.meta.env.BASE_URL} class="flex items-center gap-2 text-[#9490A8] text-sm hover:text-[#E8C766] transition">← Hub</a>
           <div class="flex items-center gap-2 font-serif font-bold text-[#B45CFF] tracking-wide">✦ AI Fortune Teller</div>
         </header>
         ${inner}

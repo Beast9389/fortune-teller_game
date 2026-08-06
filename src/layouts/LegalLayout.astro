@@ -1,35 +1,37 @@
 ---
 import Analytics from '../components/Analytics.astro';
+import SEO from '../components/SEO.astro';
 import '../styles/global.css';
 
 interface Props {
   title: string;
   description: string;
+  keywords?: string[];
+  image?: string;
 }
-const { title, description } = Astro.props;
+const { title, description, keywords = [], image } = Astro.props;
 ---
 
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{title} — My Fortune</title>
-  <meta name="description" content={description} />
+  <SEO title={title} description={description} keywords={keywords} image={image} />
   <Analytics />
 </head>
 <body class="legal-body">
   <div class="legal-wrap">
     <header class="legal-header">
-      <a href="/" class="legal-back">← My Fortune</a>
+      <a href={import.meta.env.BASE_URL} class="legal-back">← My Fortune</a>
     </header>
     <main class="legal-main">
       <slot />
     </main>
     <footer class="legal-footer">
-      <a href="/about">About Us</a>
-      <a href="/privacy">Privacy Policy</a>
-      <a href="/terms">Terms &amp; Conditions</a>
-      <a href="/contact">Contact Us</a>
+      <a href={`${import.meta.env.BASE_URL}about`}>About Us</a>
+      <a href={`${import.meta.env.BASE_URL}privacy`}>Privacy Policy</a>
+      <a href={`${import.meta.env.BASE_URL}terms`}>Terms &amp; Conditions</a>
+      <a href={`${import.meta.env.BASE_URL}contact`}>Contact Us</a>
     </footer>
   </div>
 

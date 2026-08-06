@@ -3,16 +3,20 @@ import '../styles/global.css';
 import Analytics from '../components/Analytics.astro';
 import PalmReader from '../components/PalmReader.jsx';
 import EntertainmentDisclaimer from '../components/EntertainmentDisclaimer.astro';
+import SEO from '../components/SEO.astro';
 ---
 
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" type="image/svg+xml" href={`${import.meta.env.BASE_URL}favicon.svg`} />
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Palm Reader — My Fortune</title>
-		<meta name="description" content="An on-device palm reading game. Your photo never leaves your browser." />
+		<SEO
+			title="Palm Reader"
+			description="An on-device palm reading game. Your photo never leaves your browser."
+			keywords={["online fortune teller", "free fortune teller", "how does a fortune teller work"]}
+		/>
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
 			<Analytics />
 	</head>
