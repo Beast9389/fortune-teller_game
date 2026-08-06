@@ -1,0 +1,86 @@
+---
+/**
+ * Renders an FAQ section AND injects matching FAQPage JSON-LD,
+ * so Google can show your Q&As as rich snippets in search results.
+ *
+ * Usage:
+ *   import FAQ from '../components/FAQ.astro';
+ *   ...
+ *   <FAQ items={[
+ *     { q: "What is a fortune teller?", a: "..." },
+ *     { q: "How does a fortune teller work?", a: "..." },
+ *   ]} />
+ *
+ * IMPORTANT: only use real, honest answers that match what your
+ * page actually does — Google penalizes FAQ schema that doesn't
+ * match visible on-page content.
+ */
+interface FAQItem {
+  q: string;
+  a: string;
+}
+interface Props {
+  items: FAQItem[];
+  title?: string;
+}
+const { items, title = "Frequently Asked Questions" } = Astro.props;
+---
+
+<section class="faq-section" aria-labelledby="faq-heading">
+  <h2 id="faq-heading">{title}</h2>
+  {items.map((item) => (
+    <details class="faq-item">
+      <summary>{item.q}</summary>
+      <p>{item.a}</p>
+    </details>
+  ))}
+</section>
+
+<script type="application/ld+json" set:html={JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": items.map((item) => ({
+    "@type": "Question",
+    "name": item.q,
+    "acceptedAnswer": {
+      "@type": "Answer",
+      "text": item.a,
+    },
+  })),
+})} />
+
+<style>
+  .faq-section {
+    max-width: 720px;
+    margin: 50px auto;
+    padding: 0 18px;
+  }
+  .faq-section h2 {
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    color: #E8C766;
+    margin-bottom: 18px;
+  }
+  .faq-item {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 14px 0;
+  }
+  .faq-item summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #F3ECE0;
+    font-size: 15px;
+    list-style: none;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::before {
+    content: "✦ ";
+    color: #8B5CF6;
+  }
+  .faq-item p {
+    color: #B7B3C7;
+    font-size: 14px;
+    line-height: 1.7;
+    margin: 10px 0 0 18px;
+  }
+</style>

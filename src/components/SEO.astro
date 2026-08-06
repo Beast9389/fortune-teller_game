@@ -1,0 +1,89 @@
+---
+/**
+ * Site-wide SEO component.
+ * Drop this in the <head> of every page instead of writing
+ * <title>/<meta description> by hand.
+ *
+ * Usage:
+ *   import SEO from '../components/SEO.astro';
+ *   ...
+ *   <SEO
+ *     title="AI Fortune Teller"
+ *     description="An AI-assisted fortune teller with offline fallback..."
+ *     keywords={["ai fortune teller online free", "fortune teller ai"]}
+ *   />
+ *
+ * Handles: <title>, meta description, meta keywords, canonical URL,
+ * Open Graph tags (Facebook/WhatsApp/Discord previews), Twitter Card
+ * tags, and a WebPage JSON-LD block.
+ */
+interface Props {
+  title: string;
+  description: string;
+  /** Extra page-specific keywords. Site-wide base keywords are added automatically. */
+  keywords?: string[];
+  /** Path to a 1200x630 share image, e.g. "/og/fortune-teller.png". Falls back to a site default. */
+  image?: string;
+  /** Set to true on pages you don't want indexed, e.g. 404 */
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  keywords = [],
+  image = "/og-default.png",
+  noindex = false,
+} = Astro.props;
+
+const SITE_NAME = "My Fortune";
+const BASE_KEYWORDS = [
+  "fortune teller",
+  "online fortune teller",
+  "free fortune teller",
+  "fortune teller ai",
+  "ai fortune teller online free",
+  "fortune teller game",
+];
+
+const allKeywords = [...new Set([...BASE_KEYWORDS, ...keywords])].join(", ");
+const fullTitle = `${title} — ${SITE_NAME}`;
+const canonicalURL = new URL(Astro.url.pathname, Astro.site).toString();
+const imageURL = new URL(image, Astro.site).toString();
+---
+
+<title>{fullTitle}</title>
+<meta name="description" content={description} />
+<meta name="keywords" content={allKeywords} />
+<link rel="canonical" href={canonicalURL} />
+{noindex && <meta name="robots" content="noindex, nofollow" />}
+
+<!-- Open Graph (Facebook, WhatsApp, Discord, LinkedIn) -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content={SITE_NAME} />
+<meta property="og:title" content={fullTitle} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonicalURL} />
+<meta property="og:image" content={imageURL} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+<!-- Twitter / X Card -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={fullTitle} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={imageURL} />
+
+<!-- JSON-LD structured data -->
+<script type="application/ld+json" set:html={JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": fullTitle,
+  "description": description,
+  "url": canonicalURL,
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": SITE_NAME,
+    "url": Astro.site?.toString(),
+  },
+})} />

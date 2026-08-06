@@ -278,6 +278,7 @@ function Footer() {
     <footer className="site-footer">
       <div className="footer-links">
         <a href="/about">About Us</a>
+        <a href="/paper-fortune-teller">How to Make a Paper Fortune Teller</a>
         <a href="/privacy">Privacy Policy</a>
         <a href="/terms">Terms &amp; Conditions</a>
         <a href="/contact">Contact Us</a>
