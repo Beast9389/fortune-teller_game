@@ -77,7 +77,7 @@ import LegalLayout from '../layouts/LegalLayout.astro';
 
   <h2>Contact</h2>
   <p>
-    Questions about this policy? Reach out via our <a href={`${import.meta.env.BASE_URL}contact`}>Contact page</a>.
+    Questions about this policy? Reach out via our <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/contact`}>Contact page</a>.
   </p>
 
   <p style="font-size:12px; color:#6b6880; margin-top:30px;">

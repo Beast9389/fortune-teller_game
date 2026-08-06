@@ -28,10 +28,10 @@ const { title, description, keywords = [], image } = Astro.props;
       <slot />
     </main>
     <footer class="legal-footer">
-      <a href={`${import.meta.env.BASE_URL}about`}>About Us</a>
-      <a href={`${import.meta.env.BASE_URL}privacy`}>Privacy Policy</a>
-      <a href={`${import.meta.env.BASE_URL}terms`}>Terms &amp; Conditions</a>
-      <a href={`${import.meta.env.BASE_URL}contact`}>Contact Us</a>
+      <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/about`}>About Us</a>
+      <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/privacy`}>Privacy Policy</a>
+      <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/terms`}>Terms &amp; Conditions</a>
+      <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/contact`}>Contact Us</a>
     </footer>
   </div>
 

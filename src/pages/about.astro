@@ -37,6 +37,6 @@ import LegalLayout from '../layouts/LegalLayout.astro';
 
   <h2>Get in touch</h2>
   <p>
-    Questions, feedback, or something broken? Visit our <a href={`${import.meta.env.BASE_URL}contact`}>Contact page</a>.
+    Questions, feedback, or something broken? Visit our <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/contact`}>Contact page</a>.
   </p>
 </LegalLayout>

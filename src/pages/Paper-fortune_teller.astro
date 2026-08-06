@@ -99,7 +99,7 @@ const faqItems = [
   <p style="font-size:12px; color:#6b6880; margin-top:30px;">
     This is a classic paper craft game intended for fun — like the rest of My Fortune, it's
     entertainment, not real fortune telling. If you enjoyed this, try our
-    <a href={`${import.meta.env.BASE_URL}fortune-teller`}>AI Fortune Teller</a> or <a href={import.meta.env.BASE_URL}>other free games</a>.
+    <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/fortune-teller`}>AI Fortune Teller</a> or <a href={import.meta.env.BASE_URL}>other free games</a>.
   </p>
 
   <FAQ items={faqItems} />
