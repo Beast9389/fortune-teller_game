@@ -1,17 +1,21 @@
 ---
 import '../styles/global.css';
+import Analytics from '../components/Analytics.astro';
+import EntertainmentDisclaimer from '../components/EntertainmentDisclaimer.astro';
 ---
 
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Soulmate Quiz — Arcane Arcade</title>
+  <title>Soulmate Quiz — My Fortune</title>
   <meta name="description" content="A fair, cryptographically-randomised 10 question soulmate quiz. Solo, pass-and-play, or challenge a friend." />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
-</head>
+		<Analytics />
+	</head>
 <body class="bg-[#0B0B14] text-[#F3ECE0] min-h-screen font-sans">
   <div id="app" class="max-w-3xl mx-auto px-5 py-6 min-h-screen flex flex-col"></div>
+  <EntertainmentDisclaimer />
 
   <script>
     /* ============================================================

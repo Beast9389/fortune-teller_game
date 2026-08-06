@@ -151,7 +151,7 @@ function Hub({ onEnter }) {
       <header className="hub-nav">
         <div className="brand">
           <Sparkles size={20} />
-          <span>Arcane Arcade</span>
+          <span>My Fortune</span>
         </div>
         <nav>
           <a>Games</a><a>How it works</a><a>About</a>
@@ -172,7 +172,118 @@ function Hub({ onEnter }) {
           <GameCard key={g.id} game={g} onEnter={() => onEnter(g.id)} />
         ))}
       </section>
+
+      <SeoSection />
+      <FaqSection />
+      <Footer />
     </div>
+  );
+}
+
+function SeoSection() {
+  return (
+    <section className="seo-content">
+      <h2>What is My Fortune?</h2>
+      <p>
+        My Fortune is a free collection of browser-based fortune and compatibility games —
+        no downloads, no accounts, and no hidden costs. Everything runs directly in your
+        browser using client-side JavaScript, which means your answers, your photos, and
+        your results stay on your own device unless you explicitly choose to share them
+        through a link.
+      </p>
+      <p>
+        The idea behind My Fortune is simple: fortune-telling apps online are often either
+        cheap random-number generators dressed up with mystical branding, or paid apps that
+        ask for an account before you've even seen what they do. My Fortune tries to do
+        better on both counts. Every game uses a genuine, explainable algorithm — whether
+        that's a cryptographically secure shuffle for the Tarot deck, cosine similarity
+        between two personality vectors in the Soulmate Quiz, real zodiac trigon element
+        theory combined with your actual answers in the Elemental Matcher, or an honest
+        two-buffer wave physics simulation powering The Scrying Pool. Nothing here is a
+        black box; if you're curious how a particular result was generated, the logic is
+        consistent and repeatable, not arbitrary.
+      </p>
+      <p>
+        The current lineup includes <strong>Digital Tarot &amp; Fortune Draws</strong>, a
+        five-deck tarot experience using real 1909 Pamela Colman Smith illustrations; the{" "}
+        <strong>Soulmate Quiz</strong>, a ten-question compatibility test you can take solo,
+        pass-and-play with a partner, or send as a shareable challenge link; the{" "}
+        <strong>AI Fortune Teller</strong>, which pairs AI-generated one-line predictions
+        with a genuinely offline fallback so it never leaves you stuck; the{" "}
+        <strong>Palm Reader</strong>, which uses real on-device hand-landmark detection to
+        scan your actual palm shape rather than guessing from a random photo; the{" "}
+        <strong>Elemental Matcher</strong>, combining zodiac element compatibility with a
+        real personality vector; and <strong>The Scrying Pool</strong>, a physically
+        simulated water ripple oracle with synthesized ambient sound and draggable ritual
+        relics. More games are being added regularly.
+      </p>
+      <p>
+        Every game supports at least one multiplayer mode — either Pass &amp; Play on a
+        single device, or a Destiny Link you can send to a friend on another device, so
+        they can see how their result compares to yours without either of you needing to
+        sign up for anything. Results can usually be saved as an image and shared directly
+        to social media.
+      </p>
+      <p>
+        My Fortune is built for entertainment. None of the predictions, compatibility
+        scores, or readings are scientifically validated, and nothing here should be used
+        to make real decisions about your relationships, health, career, or finances. What
+        it is meant to be is a genuinely fun, fast, and fair way to pass a few minutes —
+        whether you're curious what the cards say, testing compatibility with a partner, or
+        just seeing what rises to the surface of the scrying pool.
+      </p>
+    </section>
+  );
+}
+
+const FAQ_ITEMS = [
+  { q: "Is My Fortune actually free?", a: "Yes, completely. There are no accounts, subscriptions, paywalls, or hidden costs. The site runs entirely client-side with no backend to pay for." },
+  { q: "Do I need to sign up or log in?", a: "No. None of the games on My Fortune require an account, email address, or personal information to play." },
+  { q: "Is my data stored anywhere?", a: "No servers are involved. Some games use your browser's localStorage to remember which questions you've already seen so repeat visits feel fresh — that data stays on your device and is never transmitted anywhere." },
+  { q: "Does the Palm Reader upload my photo?", a: "No. Your photo is captured and analyzed entirely on-device using your browser's camera or file picker. It is never uploaded to a server, ever." },
+  { q: "How are the results actually generated?", a: "Each game uses a real, documented algorithm — cryptographically secure shuffling, cosine similarity between personality vectors, zodiac element compatibility theory, or genuine wave physics — rather than arbitrary randomness." },
+  { q: "Can I play with a friend who isn't next to me?", a: "Most games include a shareable 'Destiny Link' that encodes your result into the URL. When your friend opens it, they can complete their own reading and see a side-by-side comparison." },
+  { q: "Are the fortunes or compatibility scores real predictions?", a: "No — My Fortune is built purely for entertainment. Nothing on this site is scientifically validated and it shouldn't be used to make real decisions." },
+  { q: "What devices and browsers are supported?", a: "Any modern browser on desktop or mobile. Some features, like the Palm Reader's camera scan, require camera permission and a secure (HTTPS) connection." },
+];
+
+function FaqSection() {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: FAQ_ITEMS.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
+  };
+  return (
+    <section className="faq-content">
+      <h2>Frequently asked questions</h2>
+      <div className="faq-list">
+        {FAQ_ITEMS.map((item, i) => (
+          <details key={i} className="faq-item">
+            <summary>{item.q}</summary>
+            <p>{item.a}</p>
+          </details>
+        ))}
+      </div>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="site-footer">
+      <div className="footer-links">
+        <a href="/about">About Us</a>
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">Terms &amp; Conditions</a>
+        <a href="/contact">Contact Us</a>
+      </div>
+      <p className="footer-copy">My Fortune is built for entertainment purposes only. &copy; {new Date().getFullYear()} My Fortune.</p>
+    </footer>
   );
 }
 
@@ -507,4 +618,26 @@ button{ font-family:inherit; cursor:pointer; border:none; background:none; color
 .meaning p{ font-size:12.5px; color:#DCD8E8; line-height:1.5; margin:0 0 8px; }
 .meaning .genz{ color:#9490A8; font-style:italic; }
 .flag{ display:inline-block; font-size:11px; padding:3px 9px; border-radius:99px; background:rgba(255,255,255,.05); }
+
+/* ---------- SEO content, FAQ, footer ---------- */
+.seo-content{ max-width:760px; margin:70px auto 0; }
+.seo-content h2{ font-size:24px; color:#F3ECE0; margin-bottom:18px; }
+.seo-content p{ color:#B7B3C7; font-size:14.5px; line-height:1.8; margin-bottom:16px; }
+.seo-content strong{ color:#E8C766; font-weight:700; }
+
+.faq-content{ max-width:760px; margin:60px auto 0; }
+.faq-content h2{ font-size:24px; color:#F3ECE0; margin-bottom:18px; }
+.faq-list{ display:flex; flex-direction:column; gap:10px; }
+.faq-item{ background:#14131f; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:16px 18px; }
+.faq-item summary{ cursor:pointer; font-weight:700; font-size:14.5px; color:#F3ECE0; list-style:none; }
+.faq-item summary::-webkit-details-marker{ display:none; }
+.faq-item summary::before{ content:'+'; color:#E8C766; margin-right:10px; font-weight:700; }
+.faq-item[open] summary::before{ content:'\\2212'; }
+.faq-item p{ margin:12px 0 0; color:#9490A8; font-size:13.5px; line-height:1.6; }
+
+.site-footer{ max-width:1160px; margin:70px auto 0; padding:28px 0 10px; border-top:1px solid rgba(255,255,255,.08); text-align:center; }
+.footer-links{ display:flex; gap:24px; justify-content:center; flex-wrap:wrap; margin-bottom:14px; }
+.footer-links a{ color:#9490A8; font-size:13px; text-decoration:none; }
+.footer-links a:hover{ color:#E8C766; }
+.footer-copy{ color:#6b6880; font-size:11.5px; }
 `;

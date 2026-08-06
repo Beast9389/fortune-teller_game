@@ -1,0 +1,54 @@
+---
+/**
+ * Small, unobtrusive "entertainment only" disclaimer bar.
+ * Drop this near the bottom of any game page's <body>, e.g.:
+ *
+ *   <body>
+ *     <PalmReader client:load />
+ *     <EntertainmentDisclaimer />
+ *   </body>
+ *
+ * Purpose: makes clear on every game page (not just buried in
+ * Terms & Conditions) that results are for fun, not real advice —
+ * this is the kind of visible, on-page disclaimer ad networks and
+ * users both expect from psychic/tarot/astrology-style content.
+ */
+interface Props {
+  /** Optional override text */
+  text?: string;
+}
+const {
+  text = "For entertainment purposes only. Not a substitute for professional advice.",
+} = Astro.props;
+---
+
+<footer class="ef-disclaimer">
+  <p>
+    ✦ {text}
+    <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a>
+  </p>
+</footer>
+
+<style>
+  .ef-disclaimer {
+    max-width: 720px;
+    margin: 40px auto 20px;
+    padding: 14px 18px;
+    text-align: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .ef-disclaimer p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #8b879c;
+    font-family: "Manrope", sans-serif;
+  }
+  .ef-disclaimer a {
+    color: #9490a8;
+    text-decoration: underline;
+  }
+  .ef-disclaimer a:hover {
+    color: #e8c766;
+  }
+</style>

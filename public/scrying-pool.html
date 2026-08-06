@@ -3,9 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>The Scrying Pool — Arcane Arcade</title>
+<title>The Scrying Pool — My Fortune</title>
 <meta name="description" content="A physically simulated scrying pool: real wave physics, procedural sound, draggable relics, and a weighted vision oracle. Runs entirely in your browser." />
 <script src="https://cdn.tailwindcss.com"></script>
+<!-- Google Analytics — replace G-XXXXXXXXXX with your real Measurement ID from analytics.google.com -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){ dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'G-XXXXXXXXXX');
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap');
   :root { color-scheme: dark; }
@@ -677,5 +685,13 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
 requestAnimationFrame(loop);
 renderIntro();
 </script>
+
+<footer style="max-width:720px;margin:40px auto 20px;padding:14px 18px;text-align:center;border-top:1px solid rgba(255,255,255,0.08);">
+  <p style="margin:0;font-size:12px;line-height:1.6;color:#8b879c;font-family:'Manrope',sans-serif;">
+    ✦ For entertainment purposes only. Not a substitute for professional advice.
+    <a href="/terms" style="color:#9490a8;text-decoration:underline;">Terms</a> ·
+    <a href="/privacy" style="color:#9490a8;text-decoration:underline;">Privacy</a>
+  </p>
+</footer>
 </body>
 </html>

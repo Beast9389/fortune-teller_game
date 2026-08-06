@@ -1,6 +1,8 @@
 ---
 import '../styles/global.css';
+import Analytics from '../components/Analytics.astro';
 import AstroMatcher from '../components/AstroMatcher.jsx';
+import EntertainmentDisclaimer from '../components/EntertainmentDisclaimer.astro';
 ---
 
 <html lang="en">
@@ -9,11 +11,13 @@ import AstroMatcher from '../components/AstroMatcher.jsx';
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Elemental Matcher — Arcane Arcade</title>
+		<title>Elemental Matcher — My Fortune</title>
 		<meta name="description" content="Zodiac trigon compatibility combined with a real personality vector. Solo, Pass & Play, or Destiny Link." />
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+			<Analytics />
 	</head>
 	<body>
 		<AstroMatcher client:load />
+		<EntertainmentDisclaimer />
 	</body>
 </html>

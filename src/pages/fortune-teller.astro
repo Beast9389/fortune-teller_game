@@ -1,15 +1,18 @@
 ---
 import '../styles/global.css';
+import Analytics from '../components/Analytics.astro';
+import EntertainmentDisclaimer from '../components/EntertainmentDisclaimer.astro';
 ---
 
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI Fortune Teller — Arcane Arcade</title>
+  <title>AI Fortune Teller — My Fortune</title>
   <meta name="description" content="An AI-assisted fortune teller with a genuinely offline fallback, vintage woodcut-style illustrations, and pass-and-play or link-based multiplayer." />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
-</head>
+		<Analytics />
+	</head>
 <body class="bg-[#0B0B14] text-[#F3ECE0] min-h-screen font-sans relative overflow-x-hidden">
   <!-- ambient glow layer -->
   <div class="pointer-events-none fixed inset-0 overflow-hidden">
@@ -19,6 +22,7 @@ import '../styles/global.css';
 
   <div id="app" class="relative max-w-3xl mx-auto px-5 py-6 min-h-screen flex flex-col"></div>
   <div id="modal-root"></div>
+  <EntertainmentDisclaimer />
 
   <script>
     /* ============================================================

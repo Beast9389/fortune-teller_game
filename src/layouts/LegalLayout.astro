@@ -1,0 +1,55 @@
+---
+import Analytics from '../components/Analytics.astro';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+}
+const { title, description } = Astro.props;
+---
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title} — My Fortune</title>
+  <meta name="description" content={description} />
+  <Analytics />
+</head>
+<body class="legal-body">
+  <div class="legal-wrap">
+    <header class="legal-header">
+      <a href="/" class="legal-back">← My Fortune</a>
+    </header>
+    <main class="legal-main">
+      <slot />
+    </main>
+    <footer class="legal-footer">
+      <a href="/about">About Us</a>
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/terms">Terms &amp; Conditions</a>
+      <a href="/contact">Contact Us</a>
+    </footer>
+  </div>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap');
+    :global(body.legal-body) { background:#0B0B14; color:#F3ECE0; font-family:'Manrope',sans-serif; margin:0; }
+    .legal-wrap { max-width:720px; margin:0 auto; padding:32px 22px 60px; }
+    .legal-header { margin-bottom:34px; }
+    .legal-back { color:#9490A8; font-size:13.5px; text-decoration:none; }
+    .legal-back:hover { color:#E8C766; }
+    .legal-main :global(h1) { font-family:'Cinzel',serif; font-size:30px; font-weight:700; margin:0 0 8px; }
+    .legal-main :global(p.updated) { color:#8B5CF6; font-size:12px; text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin:0 0 30px; }
+    .legal-main :global(h2) { font-family:'Cinzel',serif; font-size:19px; font-weight:700; margin:32px 0 12px; color:#E8C766; }
+    .legal-main :global(p) { color:#B7B3C7; font-size:14.5px; line-height:1.75; margin:0 0 14px; }
+    .legal-main :global(ul) { color:#B7B3C7; font-size:14.5px; line-height:1.75; margin:0 0 14px; padding-left:20px; }
+    .legal-main :global(li) { margin-bottom:6px; }
+    .legal-main :global(a) { color:#22D3EE; }
+    .legal-footer { display:flex; gap:22px; flex-wrap:wrap; justify-content:center; margin-top:60px; padding-top:24px; border-top:1px solid rgba(255,255,255,.08); }
+    .legal-footer a { color:#9490A8; font-size:12.5px; text-decoration:none; }
+    .legal-footer a:hover { color:#E8C766; }
+  </style>
+</body>
+</html>
