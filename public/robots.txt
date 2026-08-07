@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://your-domain.example/sitemap-index.xml
+Sitemap: https://beast9389.github.io/fortune-teller_game/sitemap-index.xml
